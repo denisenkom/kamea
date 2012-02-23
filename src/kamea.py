@@ -44,7 +44,24 @@ SPDDEF = 0
 class ParseError(Exception):
     pass
     
-_command_metadata = {PP_LINE: {'req_pars': (('start_point', int), ('end_point', int), ('dz', float)),
+class PointRef(object):
+    def __init__(self, val):
+        if isinstance(val, str):
+            val = int(val)
+        if val < 0:
+            raise ValueError('Invalid point reference: %d' % val)
+        self._val = val
+    
+    def __eq__(self, other):
+        return self._val == other._val
+    
+    def __ne__(self, other):
+        return self._val != other._val
+    
+    def get(self):
+        return self._pt
+    
+_command_metadata = {PP_LINE: {'req_pars': (('start_point', PointRef), ('end_point', PointRef), ('dz', float)),
                                'has_speed': True,
                                },
                      PP_ARC: {'req_pars': (('start_point', int), ('mid_point', int), ('end_point', int)),
@@ -107,6 +124,7 @@ def parse(stream):
     if len(instr_num_buf) < 2:
         raise ParseError('Bad file format')
     instr_num, = struct.unpack('<H', instr_num_buf)
+    points_refs = []
     for _ in range(instr_num):
         instr_offset = stream.tell()
         instr_buf = stream.read(32)
@@ -142,6 +160,8 @@ def parse(stream):
             except ValueError, e:
                 _instr_error(e, instr_offset)
             setattr(inst, name, val)
+            if isinstance(val, PointRef):
+                points_refs.append((instr_offset, val, inst, name))
         opt_res = params[len(req):]
         for i in range(min(len(opt), len(params) - len(req))):
             try:
@@ -171,5 +191,12 @@ def parse(stream):
             raise ParseError('Unexpected end of file when loading points')
         x, y = struct.unpack('<HH', point_buf)
         points.append((x/10.0, y/10.0))
+
+    # validating/fixing points refs
+    for instr_offset, ref, inst, name in points_refs:
+        if ref._val >= len(points):
+            _instr_error("Referenced point doesn't exist, point # %d" % ref._val, instr_offset)
+            raise ParseError('Incorrect point reference in instruction')
+        ref._pt = points[ref._val]
 
     return instructions, points

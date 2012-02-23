@@ -10,20 +10,21 @@ from kamea import *
 
 class Test(unittest.TestCase):
     def test_real_parse(self):
-        parse(open(os.path.join(os.path.dirname(__file__), 'circle.kam'), 'r'))
+        parse(open(os.path.join(os.path.dirname(__file__), r'..\test\circle.kam'), 'r'))
 
     def test_empty_file(self):
         self.assertEqual(parse(StringIO('\x00\x00\x00\x00')), ([], []))
 
     def test_simple_instr(self):
-        instrs, points = parse(StringIO('\x01\x00\x00\x084,2,1,3\x00' + '\x00' * 22 + '\x00\x00'))
+        instrs, points = parse(StringIO('\x01\x00\x00\x080,1,2,3\x00' + '\x00' * 22 + '\x02\x00\x00\x00\x01\x00\x00\x00\x05\x00'))
         self.assertEqual(instrs, [Instruction(PP_LINE,
-                                              start_point=4,
-                                              end_point=2,
-                                              dz=1,
+                                              start_point=PointRef(0),
+                                              end_point=PointRef(1),
+                                              dz=2,
                                               spd=3,
                                               updown=True)])
-        self.assertEqual(points, [])
+        self.assertEqual(points, [(0, 0.1), (0, 0.5)])
+        self.assertEqual([instrs[0].start_point.get(), instrs[0].end_point.get()], [(0, 0.1), (0, 0.5)])
 
     def test_points_load(self):
         instr, points = parse(StringIO('\x00\x00\x02\x00\x55\x00\x01\x00\x44\x00\x21\x00'))
@@ -69,6 +70,13 @@ class Test(unittest.TestCase):
     def test_invalid_file11(self):
         self.assertRaises(ParseError, parse, StringIO('\x00\x00\x01\x00'))
         #"Unexpected end of file when loading points"
+
+    def test_invalid_file12(self):
+        self.assertRaises(ParseError, parse, StringIO('\x01\x00\x00\x080,-1,1,1\x01' + '\x00' * 22 + '\x00\x00'))
+        #"Invalid point reference: -1 in instruction at offset 0x2"
+
+    def test_invalid_point_reference(self):
+        self.assertRaises(ParseError, parse, StringIO('\x01\x00\x00\x080,1,2,3\x00' + '\x00' * 22 + '\x01\x00\x00\x00\x01\x00'))
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
