@@ -3,8 +3,6 @@ Created on Feb 21, 2012
 
 @author: misha
 '''
-import os
-import re
 import struct
 
 PP_LINE = 0x00
@@ -44,47 +42,10 @@ MIN_SPD = 1
 SPDDEF = 0
 
 class ParseError(Exception):
-    def __init__(self, msg, stm):
-        super(self, ParseError).__init__('%s at offset 0x%x' % (msg, stm.tell()))
-        
-def _split(stm, cmd, req):
-    res = cmd.split(',')
-    if len(res) < req:
-        raise ParseError('Missing required parameters', stm)
-    return res[0:req], res[req:]
-
-def _parse_command(stm, cmd, req, opt):
-    res = cmd.split(',')
-    if len(res) < len(req):
-        raise ParseError('Missing required parameters', stm)
-    req_res = res[0:len(req)]
-    for i, t in enumerate(req):
-        # TODO: catch conversion error
-        req_res[i] = t(req_res[i])
-    opt_res = res[len(req):]
-    for i, t in enumerate(opt):
-        # TODO: catch conversion error
-        opt_res[i] = t(opt_res[i])
-    return req_res, opt_res
-
-def _check_spd(stm, spd):
-    if spd > MAX_SPD or spd < MIN_SPD:
-        raise ParseError("Invalid speed value %s" % spd, stm)
-    
-def _get_spd(stm, opt):
-    if opt:
-        _check_spd(stm, opt[0])
-        return opt[0]
-    else:
-        return SPDDEF
-    
-def _pp_line_handler(cmd, cmdbuf, param_l):
-    cmd.updown = (cmdbuf[param_l-1] == 0)
-    
+    pass
     
 _command_metadata = {PP_LINE: {'req_pars': (('start_point', int), ('end_point', int), ('dz', float)),
                                'has_speed': True,
-                               'handler': _pp_line_handler,
                                },
                      PP_ARC: {'req_pars': (('start_point', int), ('mid_point', int), ('end_point', int)),
                               'has_speed': True,
@@ -95,168 +56,120 @@ _command_metadata = {PP_LINE: {'req_pars': (('start_point', int), ('end_point', 
                               'has_speed': True,},
                      PRZ_ARC: {'req_pars': (('start_point', int), ('end_point', int), ('radius', float), ('dz', float)),
                                'has_speed': True,},
+                     LINE: {'req_pars': (('dx', float), ('dy', float), ('dz', float)),
+                            'has_speed': True,},
+                     ARC: {'req_pars': (('radius', float), ('al', float), ('fi', float)),
+                            'has_speed': True,},
+                     REL_ARC: {'req_pars': (('dx', float), ('dy', float), ('radius', float)),
+                               'has_speed': True,},
+                     ON: {'req_pars': (('device', int),)},
                      OFF: {'req_pars': (('device', int),)},
+                     SCALE_X: {'req_pars': (('old_scale', int), ('new_scale', int))},
+                     SCALE_Y: {'req_pars': (('old_scale', int), ('new_scale', int))},
+                     SCALE_Z: {'req_pars': (('old_scale', int), ('new_scale', int))},
+                     TURN: {'req_pars': (('mirror_x', bool), ('mirror_y', bool), ('angle', float))},
                      SPEED: {'req_pars': (('speed', int),)},
-                     SET_PARK: {'req_pars': ()},
-                     GO_ZERO: {'req_pars': ()},
+                     SET_PARK: {},
+                     GO_PARK: {},
+                     SET_ZERO: {},
+                     GO_ZERO: {'x': ()},
                      CALL: {'req_pars': (('proc_name', str)),},
-                    }
+                     RET: {},
+                     LABEL: {'req_pars': (('name', str)),},
+                     GOTO: {'req_pars': (('label_name', str)),},
+                     SUB: {'req_pars': (('name', str)),},
+                     LOOP: {'req_pars': (('n', int),)},
+                     ENDLOOP: {},
+                     STOP: {},
+                     FINISH: {},
+                     PAUSE: {'req_pars': (('delay', float),)},
+                     COMMENT: {'req_pars': (('text', str)),},
+                     SPLINE: {'req_pars': (('p1', int), ('p2', int), ('p3', int), ('p4', int))},
+                     }
 
 MAX_CMD_LEN = 30
 
-class Command(object):
-    pass
+class Instruction(object):
+    def __init__(self, instr_type, **kwargs):
+        self.instr_type = instr_type
+        self.__dict__.update(kwargs)
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+    def __ne__(self, other):
+        return self.__dict__ != other.__dict__
+
+def _instr_error(msg, instr_offset):
+    raise ParseError('%s in instruction at offset 0x%x' % (msg, instr_offset))
 
 def parse(stream):
-    commands = []
-    cmds_num, = struct.unpack('<H', stream.read(2))
-    for i in range(cmds_num):
-        cmd_id, = struct.unpack('B', stream.read(1))
-        if cmd_id > 0x1f:
-            raise ParseError('Invalid command %d' % cmd_id, stream)
+    instructions = []
+    instr_num_buf = stream.read(2)
+    if len(instr_num_buf) < 2:
+        raise ParseError('Bad file format')
+    instr_num, = struct.unpack('<H', instr_num_buf)
+    for _ in range(instr_num):
+        instr_offset = stream.tell()
+        instr_buf = stream.read(32)
+        if len(instr_buf) < 32:
+            _instr_error('Unexpected end of file', instr_offset)
+        instr_type, = struct.unpack('B', instr_buf[0])
+        metadata = _command_metadata.get(instr_type)
+        if not metadata:
+            _instr_error('Invalid command %d' % instr_type, instr_offset)
 
-        param_l, = struct.unpack('B', stream.read(1))
-        if param_l > MAX_CMD_LEN:
-            raise ParseError("Invalid command length %d" % param_l, stream)
+        params_len, = struct.unpack('B', instr_buf[1])
+        if params_len > MAX_CMD_LEN:
+            _instr_error('Invalid command length %d' % params_len, instr_offset)
 
-        cmdbuf = stream.read(param_l)
-        stream.seek(MAX_CMD_LEN - param_l, os.SEEK_CUR)
-        cmd = Command()
-        cmd.cmd_type = cmd_id
-        metadata = _command_metadata[cmd_id]
-        req = [t for _, t in metadata['req_pars']]
+        params_str = instr_buf[2:2 + params_len]
+        inst = Instruction(instr_type)
+        if instr_type == PP_LINE:
+            if not params_str:
+                _instr_error('Invalid parameters string', instr_offset)
+            inst.updown = (ord(params_str[-1]) == 0)
+            params_str = params_str[0:-1]            
+        req = metadata.get('req_pars', ())
         opt = ()
         if metadata.get('has_speed', False):
             opt = (int,)
-        req, opt = _parse_command(stream, cmdbuf, req, opt)
-        for i, (name, _) in enumerate(metadata['req_pars']):
-            setattr(cmd, name, req[i])
+        params_str = filter(lambda c: 32 <= ord(c) <= 126, params_str)
+        params = params_str.split(',')
+        if len(params) < len(req):
+            _instr_error('Missing required parameters', instr_offset)
+        for i, (name, conv) in enumerate(req):
+            try:
+                val = conv(params[i])
+            except ValueError, e:
+                _instr_error(e, instr_offset)
+            setattr(inst, name, val)
+        opt_res = params[len(req):]
+        for i in range(min(len(opt), len(params) - len(req))):
+            try:
+                val = opt[i](opt_res[i])
+            except ValueError, e:
+                _instr_error(e, instr_offset)
+            opt_res[i] = opt[i](opt_res[i])
         if metadata.get('has_speed', False):
-            cmd.spd = _get_spd(opt)
-        handler = metadata.get('handler')
-        if handler:
-            handler(cmd, cmdbuf, param_l)
-        commands.append(cmd)
-            
-#        case LINE:
-#            res = sscanf(cmdbuf, "%f,%f,%f,%u", &dx, &dy, &dz, &spd);    
-#            if (res < 3)
-#                throw EInvalidCommandFormat("", i, cmdId);
-#            if (spd > SPD8 || spd < SPDDEF)
-#                throw EInvalidSpeedValue("", i, cmdId, spd);
-#            program.addCommand(auto_ptr<Command>(new CLINE(dx, dy, dz, static_cast<ESpeed>(spd))));
-#            break;
-#
-#        case ARC:
-#            res = sscanf(cmdbuf, "%f,%f,%f,%u", &radius, &al, &fi, &spd);    
-#            if (res < 3)
-#                throw EInvalidCommandFormat("", i, cmdId);
-#            if (spd > SPD8 || spd < SPDDEF)
-#                throw EInvalidSpeedValue("", i, cmdId, spd);
-#            program.addCommand(auto_ptr<Command>(new CARC(radius, al, fi, static_cast<ESpeed>(spd))));
-#            break;
-#
-#        case REL_ARC:
-#            res = sscanf(cmdbuf, "%f,%f,%f,%u", &dx, &dy, &radius, &spd);    
-#            if (res < 3)
-#                throw EInvalidCommandFormat("", i, cmdId);
-#            if (spd > SPD8 || spd < SPDDEF)
-#                throw EInvalidSpeedValue("", i, cmdId, spd);
-#            program.addCommand(auto_ptr<Command>(new CREL_ARC(dx, dy, radius, static_cast<ESpeed>(spd))));
-#            break;
-#
-#        case GO_PARK: program.addCommand(auto_ptr<Command>(new CGO_PARK)); break;
-#        case SET_ZERO: program.addCommand(auto_ptr<Command>(new CSET_ZERO)); break;
-#
-#        case ON:
-#            res = sscanf(cmdbuf, "%u", &device);
-#            if (res < 1)
-#                throw EInvalidCommandFormat("", i, cmdId);
-#            if (device != SPINDEL)
-#                throw EInvalidDevice("", i, cmdId, device);
-#            program.addCommand(auto_ptr<Command>(new CON(static_cast<EDevice>(device))));
-#            break;
-#
-#
-#
-#        case SCALE_X:
-#            relative = (cmdbuf[param_l-1] == 1);
-#            for (char *ptr = cmdbuf; ptr != cmdbuf+param_l; ptr++)
-#                if (*ptr < ' ') *ptr = ' ';
-#            res = sscanf(cmdbuf, "%u,%u", &old_scale, &new_scale);
-#            if (res < 2)
-#                throw EInvalidCommandFormat("", i, cmdId);
-#            program.addCommand(auto_ptr<Command>(new CSCALEX(old_scale, new_scale, relative)));
-#            break;
-#
-#        case SCALE_Y:
-#            relative = (cmdbuf[param_l-1] == 1);
-#            for (char *ptr = cmdbuf; ptr != cmdbuf+param_l; ptr++)
-#                if (*ptr < ' ') *ptr = ' ';
-#            res = sscanf(cmdbuf, "%u,%u", &old_scale, &new_scale);
-#            if (res < 2)
-#                throw EInvalidCommandFormat("", i, cmdId);
-#            program.addCommand(auto_ptr<Command>(new CSCALEY(old_scale, new_scale, relative)));
-#            break;
-#
-#        case SCALE_Z:
-#            relative = (cmdbuf[param_l-1] == 1);
-#            for (char *ptr = cmdbuf; ptr != cmdbuf+param_l; ptr++)
-#                if (*ptr < ' ') *ptr = ' ';
-#            res = sscanf(cmdbuf, "%u,%u", &old_scale, &new_scale);
-#            if (res < 2)
-#                throw EInvalidCommandFormat("", i, cmdId);
-#            program.addCommand(auto_ptr<Command>(new CSCALEZ(old_scale, new_scale, relative)));
-#            break;
-#
-#        case TURN:
-#            res = sscanf(cmdbuf, "%u,%u,%f", &mirrorX, &mirrorY, &angle);
-#            if (res < 3)
-#                throw EInvalidCommandFormat("", i, cmdId);
-#            program.addCommand(auto_ptr<Command>(new CTURN(mirrorX > 0 ? true : false, mirrorY > 0 ? true : false, angle)));
-#            break;
-#
-#        case SUB: program.addCommand(auto_ptr<Command>(new CSUB(cmdbuf))); break;
-#        case CALL: program.addCommand(auto_ptr<Command>(new CCALL(cmdbuf))); break;
-#        case RET: program.addCommand(auto_ptr<Command>(new CRET)); break;
-#        case LABEL: program.addCommand(auto_ptr<Command>(new CLABEL(cmdbuf))); break;
-#        case GOTO: program.addCommand(auto_ptr<Command>(new CGOTO(cmdbuf))); break;
-#
-#        case LOOP:
-#            res = sscanf(cmdbuf, "%u", &n);
-#            if (res < 1)
-#                throw EInvalidCommandFormat("", i, cmdId);
-#            program.addCommand(auto_ptr<Command>(new CLOOP(n)));
-#            break;
-#
-#        case ENDLOOP: program.addCommand(auto_ptr<Command>(new CENDLOOP)); break;
-#        case STOP: program.addCommand(auto_ptr<Command>(new CSTOP)); break;
-#        case FINISH: program.addCommand(auto_ptr<Command>(new CFINISH)); break;
-#
-#        case PAUSE:
-#            res = sscanf(cmdbuf, "%f", &delay);
-#            if (res < 1)
-#                throw EInvalidCommandFormat("", i, cmdId);
-#            program.addCommand(auto_ptr<Command>(new CPAUSE(delay)));
-#            break;
-#
-#        case COMMENT: program.addCommand(auto_ptr<Command>(new CCOMMENT(cmdbuf))); break;
-#
-#        case SPLINE:
-#            res = sscanf(cmdbuf, "%i%i%i%i", &p1, &p2, &p3, &p4);
-#            if (res < 4)
-#                throw EInvalidCommandFormat("", i, cmdId);
-#            program.addCommand(auto_ptr<Command>(new CSPLINE(p1, p2, p3, p4)));
-#            break;
-#        }
-#    }
+            if opt_res:
+                spd = opt_res[0]
+                if MIN_SPD <= spd <= MAX_SPD:
+                    inst.spd = spd
+                else:
+                    _instr_error("Invalid speed value %s" % spd, instr_offset)
+            else:
+                inst.spd = SPDDEF
+        instructions.append(inst)
 
-    points_num = struct.unpack('<H', stream.read(2))
+    points_num_buf = stream.read(2)
+    if len(points_num_buf) < 2:
+        raise ParseError('Bad file format')
+    points_num, = struct.unpack('<H', points_num_buf)
     points = []
     for _ in range(points_num):
-        points.append(struct.unpack('<HH', stream.read(4)))
+        point_buf = stream.read(4)
+        if len(point_buf) < 4:
+            raise ParseError('Unexpected end of file when loading points')
+        x, y = struct.unpack('<HH', point_buf)
+        points.append((x/10.0, y/10.0))
 
-    return commands, points
-
-if __name__ == '__main__':
-    print parse(open(r'C:\Users\misha\documents\workspace\dxf2kam\test\circle.kam', 'r'))
+    return instructions, points
