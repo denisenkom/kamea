@@ -61,6 +61,16 @@ class PointRef(object):
     def get(self):
         return self._pt
     
+class SubRef(object):
+    def __init__(self, val):
+        self._val = val
+
+    def __eq__(self, other):
+        return self._val == other._val
+    
+    def __ne__(self, other):
+        return self._val != other._val
+    
 _command_metadata = {PP_LINE: {'req_pars': (('start_point', PointRef), ('end_point', PointRef), ('dz', float)),
                                'has_speed': True,
                                },
@@ -90,17 +100,17 @@ _command_metadata = {PP_LINE: {'req_pars': (('start_point', PointRef), ('end_poi
                      GO_PARK: {},
                      SET_ZERO: {},
                      GO_ZERO: {'x': ()},
-                     CALL: {'req_pars': (('proc_name', str)),},
+                     CALL: {'req_pars': (('proc_name', SubRef),),},
                      RET: {},
-                     LABEL: {'req_pars': (('name', str)),},
-                     GOTO: {'req_pars': (('label_name', str)),},
-                     SUB: {'req_pars': (('name', str)),},
+                     LABEL: {'req_pars': (('name', str),),},
+                     GOTO: {'req_pars': (('label_name', str),),},
+                     SUB: {'req_pars': (('name', str),),},
                      LOOP: {'req_pars': (('n', int),)},
                      ENDLOOP: {},
                      STOP: {},
                      FINISH: {},
                      PAUSE: {'req_pars': (('delay', float),)},
-                     COMMENT: {'req_pars': (('text', str)),},
+                     COMMENT: {'req_pars': (('text', str),),},
                      SPLINE: {'req_pars': (('p1', int), ('p2', int), ('p3', int), ('p4', int))},
                      }
 
@@ -125,6 +135,8 @@ def parse(stream):
         raise ParseError('Bad file format')
     instr_num, = struct.unpack('<H', instr_num_buf)
     points_refs = []
+    sub_refs = []
+    subs = set()
     for _ in range(instr_num):
         instr_offset = stream.tell()
         instr_buf = stream.read(32)
@@ -132,7 +144,7 @@ def parse(stream):
             _instr_error('Unexpected end of file', instr_offset)
         instr_type, = struct.unpack('B', instr_buf[0])
         metadata = _command_metadata.get(instr_type)
-        if not metadata:
+        if metadata is None:
             _instr_error('Invalid command %d' % instr_type, instr_offset)
 
         params_len, = struct.unpack('B', instr_buf[1])
@@ -145,7 +157,7 @@ def parse(stream):
             if not params_str:
                 _instr_error('Invalid parameters string', instr_offset)
             inst.updown = (ord(params_str[-1]) == 0)
-            params_str = params_str[0:-1]            
+            params_str = params_str[0:-1]
         req = metadata.get('req_pars', ())
         opt = ()
         if metadata.get('has_speed', False):
@@ -178,6 +190,12 @@ def parse(stream):
                     _instr_error("Invalid speed value %s" % spd, instr_offset)
             else:
                 inst.spd = SPDDEF
+        if instr_type == SUB:
+            if inst.name in subs:
+                _instr_error("Procedure redefined: '%s'" % inst.name, instr_offset)
+            subs.add(inst.name)
+        elif instr_type == CALL:
+            sub_refs.append((instr_offset, inst))
         instructions.append(inst)
 
     points_num_buf = stream.read(2)
@@ -196,7 +214,11 @@ def parse(stream):
     for instr_offset, ref, inst, name in points_refs:
         if ref._val >= len(points):
             _instr_error("Referenced point doesn't exist, point # %d" % ref._val, instr_offset)
-            raise ParseError('Incorrect point reference in instruction')
         ref._pt = points[ref._val]
+        
+    # validating proc refs
+    for instr_offset, inst in sub_refs:
+        if inst.proc_name._val not in subs:
+            _instr_error("Unresolved reference to procedure: '%s'" % inst.proc_name._val, instr_offset)
 
     return instructions, points

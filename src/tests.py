@@ -77,6 +77,23 @@ class Test(unittest.TestCase):
 
     def test_invalid_point_reference(self):
         self.assertRaises(ParseError, parse, StringIO('\x01\x00\x00\x080,1,2,3\x00' + '\x00' * 22 + '\x01\x00\x00\x00\x01\x00'))
+    
+    def test_sub_redefined(self):
+        self.assertRaises(ParseError, parse, StringIO('\x02\x00\x1f\x03abc' + '\x00' * 27 + '\x1f\x03abc' + '\x00' * 27 + '\x00\x00'))
+        
+    def test_valid_proc_reference(self):
+        parse(StringIO('\x03\x00' +
+                       '\x1f\x03abc' + '\x00' * 27 +\
+                       '\x15\x00' + '\x00' * 30 +\
+                       '\x14\x03abc' + '\x00' * 27 +\
+                       '\x00\x00'))
+    
+    def test_invalid_proc_reference(self):
+        self.assertRaises(ParseError, parse, StringIO('\x03\x00' +
+                                                      '\x1f\x03abc' + '\x00' * 27 +
+                                                      '\x15\x00' + '\x00' * 30 +
+                                                      '\x14\x03abd' + '\x00' * 27 +
+                                                      '\x00\x00'))
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
