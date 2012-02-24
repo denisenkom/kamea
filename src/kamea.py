@@ -43,6 +43,9 @@ SPDDEF = 0
 
 class ParseError(Exception):
     pass
+
+class WriteError(Exception):
+    pass
     
 class PointRef(object):
     def __init__(self, val):
@@ -241,3 +244,22 @@ def parse(stream):
             _instr_error("Unresolved reference to label: '%s'" % instr.label_name._val, instr._offset)
 
     return instructions, points
+
+
+def write(instructions, stream):
+    num_buf = struct.pack('<H', len(instructions))
+    stream.write(num_buf)
+    for instr in instructions:
+        code_buf = struct.pack('B', instr.instr_type)
+        stream.write(code_buf)
+        metadata = _command_metadata[instr.instr_type]
+        params = [repr(getattr(instr, name)) for name, _ in metadata.get('req_pars', ())]
+        if metadata.get('has_speed', False):
+            if instr.spd != SPDDEF:
+                params.append(repr(instr.spd))
+        params_str = ','.join(params)
+        if len(params_str) > 30:
+            raise WriteError("Bad instruction, parameters are too long: '%s'" % params_str)
+        stream.write(struct.pack('B', len(params_str)))
+        stream.write(params_str + '\x00'* (30 - len(params_str)))
+    stream.write('\x00\x00')

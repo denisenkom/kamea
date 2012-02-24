@@ -26,6 +26,18 @@ class Test(unittest.TestCase):
         self.assertEqual(points, [(0, 0.1), (0, 0.5)])
         self.assertEqual([instrs[0].start_point.get(), instrs[0].end_point.get()], [(0, 0.1), (0, 0.5)])
 
+    def test_simple_instr2(self):
+        b = '\x01\x00' + \
+            '\x04\x0910,20,2,4' + '\x00' * 21 + \
+            '\x00\x00'
+        instrs, points = parse(StringIO(b))
+        self.assertEqual((instrs, points), ([Instruction(LINE,
+                                                        dx=10,
+                                                        dy=20,
+                                                        dz=2,
+                                                        spd=4)],
+                                            []))
+
     def test_points_load(self):
         instr, points = parse(StringIO('\x00\x00\x02\x00\x55\x00\x01\x00\x44\x00\x21\x00'))
         self.assertEqual((instr, points), ([], [(0x55/10.0, 0.1), (0x44/10.0, 0x21/10.0)]))
@@ -115,6 +127,14 @@ class Test(unittest.TestCase):
             '\x13\x03abd' + '\x00' * 27 + \
             '\x00\x00'
         self.assertRaises(ParseError, parse, StringIO(b))
+        
+    def test_simple_save(self):
+        stm = StringIO()
+        write([Instruction(LINE, dx=10, dy=20, dz=2, spd=4)], stm)
+        b = '\x01\x00' + \
+            '\x04\x0910,20,2,4' + '\x00' * 21 + \
+            '\x00\x00'
+        self.assertEqual(stm.getvalue(), b)
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
