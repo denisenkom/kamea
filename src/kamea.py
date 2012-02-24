@@ -158,12 +158,12 @@ def parse(stream):
             _instr_error('Invalid command length %d' % params_len, instr_offset)
 
         params_str = instr_buf[2:2 + params_len]
-        inst = Instruction(instr_type)
-        inst._offset = instr_offset
+        instr = Instruction(instr_type)
+        instr._offset = instr_offset
         if instr_type == PP_LINE:
             if not params_str:
                 _instr_error('Invalid parameters string', instr_offset)
-            inst.updown = (ord(params_str[-1]) == 0)
+            instr.updown = (ord(params_str[-1]) == 0)
             params_str = params_str[0:-1]
         req = metadata.get('req_pars', ())
         opt = ()
@@ -178,9 +178,9 @@ def parse(stream):
                 val = conv(params[i])
             except ValueError, e:
                 _instr_error(e, instr_offset)
-            setattr(inst, name, val)
+            setattr(instr, name, val)
             if isinstance(val, PointRef):
-                points_refs.append((inst, val, name))
+                points_refs.append((instr, val, name))
         opt_res = params[len(req):]
         for i in range(min(len(opt), len(params) - len(req))):
             try:
@@ -192,25 +192,25 @@ def parse(stream):
             if opt_res:
                 spd = opt_res[0]
                 if MIN_SPD <= spd <= MAX_SPD:
-                    inst.spd = spd
+                    instr.spd = spd
                 else:
                     _instr_error("Invalid speed value %s" % spd, instr_offset)
             else:
-                inst.spd = SPDDEF
+                instr.spd = SPDDEF
         if instr_type == SUB:
-            if inst.name in subs:
-                _instr_error("Procedure redefined: '%s'" % inst.name, instr_offset)
-            subs.add(inst.name)
+            if instr.name in subs:
+                _instr_error("Procedure redefined: '%s'" % instr.name, instr_offset)
+            subs.add(instr.name)
         elif instr_type == CALL:
-            sub_refs.append(inst)
+            sub_refs.append(instr)
         elif instr_type == LABEL:
-            if inst.name in labels:
-                _instr_error("Label redefined: '%s'" % inst.name, instr_offset)
-            labels.add(inst.name)
+            if instr.name in labels:
+                _instr_error("Label redefined: '%s'" % instr.name, instr_offset)
+            labels.add(instr.name)
         elif instr_type == GOTO:
-            label_refs.append(inst)
+            label_refs.append(instr)
             
-        instructions.append(inst)
+        instructions.append(instr)
 
     points_num_buf = stream.read(2)
     if len(points_num_buf) < 2:
@@ -225,19 +225,19 @@ def parse(stream):
         points.append((x/10.0, y/10.0))
 
     # validating/fixing points refs
-    for inst, ref, name in points_refs:
+    for instr, ref, name in points_refs:
         if ref._val >= len(points):
-            _instr_error("Referenced point doesn't exist, point # %d" % ref._val, inst._offset)
+            _instr_error("Referenced point doesn't exist, point # %d" % ref._val, instr._offset)
         ref._pt = points[ref._val]
         
     # validating proc refs
-    for inst in sub_refs:
-        if inst.proc_name._val not in subs:
-            _instr_error("Unresolved reference to procedure: '%s'" % inst.proc_name._val, inst._offset)
+    for instr in sub_refs:
+        if instr.proc_name._val not in subs:
+            _instr_error("Unresolved reference to procedure: '%s'" % instr.proc_name._val, instr._offset)
             
     # validating label refs
-    for inst in label_refs:
-        if inst.label_name._val not in labels:
-            _instr_error("Unresolved reference to label: '%s'" % inst.label_name._val, inst._offset)
+    for instr in label_refs:
+        if instr.label_name._val not in labels:
+            _instr_error("Unresolved reference to label: '%s'" % instr.label_name._val, instr._offset)
 
     return instructions, points
