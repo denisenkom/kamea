@@ -131,6 +131,14 @@ class Instruction(object):
         return True
     def __ne__(self, other):
         return not self.__eq__(other)
+    
+    def __repr__(self):
+        params = []
+        for key in self.__dict__:
+            if key[0] != '_' and key != 'instr_type':
+                params.append('%s=%s' % (key, repr(getattr(self, key))))
+        params_str = ','.join(params)
+        return 'Instruction(%d%s)' % (self.instr_type, ',' + params_str if params_str else '')
 
 def _instr_error(msg, instr_offset):
     raise ParseError('%s in instruction at offset 0x%x' % (msg, instr_offset))

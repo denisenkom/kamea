@@ -10,7 +10,8 @@ from kamea import *
 
 class Test(unittest.TestCase):
     def test_real_parse(self):
-        parse(open(os.path.join(os.path.dirname(__file__), r'..\test\circle.kam'), 'r'))
+        res = parse(open(os.path.join(os.path.dirname(__file__), r'..\test\circle.kam'), 'r'))
+        self.assertEqual(res, eval(repr(res)))
 
     def test_empty_file(self):
         self.assertEqual(parse(StringIO('\x00\x00\x00\x00')), ([], []))
@@ -147,6 +148,10 @@ class Test(unittest.TestCase):
         
     def test_too_long_instruction_params(self):
         self.assertRaises(WriteError, write, [Instruction(COMMENT, text='x'*31)], StringIO())
+        
+    def test_repr(self):
+        val = Instruction(LINE, dx=10, dy=20, dz=2, spd=4)
+        self.assertEqual(val, eval(repr(val)))
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
