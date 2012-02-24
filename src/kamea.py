@@ -121,9 +121,13 @@ class Instruction(object):
         self.instr_type = instr_type
         self.__dict__.update(kwargs)
     def __eq__(self, other):
-        return self.__dict__ == other.__dict__
+        for key in self.__dict__:
+            if key[0] != '_':
+                if self.__dict__[key] != other.__dict__[key]:
+                    return False
+        return True
     def __ne__(self, other):
-        return self.__dict__ != other.__dict__
+        return not self.__eq__(other)
 
 def _instr_error(msg, instr_offset):
     raise ParseError('%s in instruction at offset 0x%x' % (msg, instr_offset))
@@ -155,6 +159,7 @@ def parse(stream):
 
         params_str = instr_buf[2:2 + params_len]
         inst = Instruction(instr_type)
+        inst._offset = instr_offset
         if instr_type == PP_LINE:
             if not params_str:
                 _instr_error('Invalid parameters string', instr_offset)
@@ -175,7 +180,7 @@ def parse(stream):
                 _instr_error(e, instr_offset)
             setattr(inst, name, val)
             if isinstance(val, PointRef):
-                points_refs.append((instr_offset, val, inst, name))
+                points_refs.append((inst, val, name))
         opt_res = params[len(req):]
         for i in range(min(len(opt), len(params) - len(req))):
             try:
@@ -197,13 +202,13 @@ def parse(stream):
                 _instr_error("Procedure redefined: '%s'" % inst.name, instr_offset)
             subs.add(inst.name)
         elif instr_type == CALL:
-            sub_refs.append((instr_offset, inst))
+            sub_refs.append(inst)
         elif instr_type == LABEL:
             if inst.name in labels:
                 _instr_error("Label redefined: '%s'" % inst.name, instr_offset)
             labels.add(inst.name)
         elif instr_type == GOTO:
-            label_refs.append((instr_offset, inst))
+            label_refs.append(inst)
             
         instructions.append(inst)
 
@@ -220,19 +225,19 @@ def parse(stream):
         points.append((x/10.0, y/10.0))
 
     # validating/fixing points refs
-    for instr_offset, ref, inst, name in points_refs:
+    for inst, ref, name in points_refs:
         if ref._val >= len(points):
-            _instr_error("Referenced point doesn't exist, point # %d" % ref._val, instr_offset)
+            _instr_error("Referenced point doesn't exist, point # %d" % ref._val, inst._offset)
         ref._pt = points[ref._val]
         
     # validating proc refs
-    for instr_offset, inst in sub_refs:
+    for inst in sub_refs:
         if inst.proc_name._val not in subs:
-            _instr_error("Unresolved reference to procedure: '%s'" % inst.proc_name._val, instr_offset)
+            _instr_error("Unresolved reference to procedure: '%s'" % inst.proc_name._val, inst._offset)
             
     # validating label refs
-    for instr_offset, inst in label_refs:
+    for inst in label_refs:
         if inst.label_name._val not in labels:
-            _instr_error("Unresolved reference to label: '%s'" % inst.label_name._val, instr_offset)
+            _instr_error("Unresolved reference to label: '%s'" % inst.label_name._val, inst._offset)
 
     return instructions, points
