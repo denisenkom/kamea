@@ -245,7 +245,7 @@ def parse(stream):
 
     return instructions, points
 
-MAX_INSTRUCTIONS = 2**16
+MAX_INSTRUCTIONS = 2**16 - 1
 
 def write(instructions, stream):
     if len(instructions) > MAX_INSTRUCTIONS:

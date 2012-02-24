@@ -137,7 +137,13 @@ class Test(unittest.TestCase):
         self.assertEqual(stm.getvalue(), b)
         
     def test_too_many_instructions(self):
-        self.assertRaises(WriteError, write, [Instruction(LINE, dx=10, dy=20, dz=2, spd=4)]*65537, StringIO())
+        self.assertRaises(WriteError, write, [Instruction(LINE, dx=10, dy=20, dz=2, spd=4)]*65536, StringIO())
+        
+    def test_most_instructions(self):
+        class NullStream():
+            def write(self, buf):
+                pass
+        write([Instruction(LINE, dx=10, dy=20, dz=2, spd=4)]*65535, NullStream())
         
     def test_too_long_instruction_params(self):
         self.assertRaises(WriteError, write, [Instruction(COMMENT, text='x'*31)], StringIO())
