@@ -53,28 +53,44 @@ class NameRef(object):
     def __ne__(self, other):
         return self._val != other._val
     
-_command_metadata = {'PP_LINE': {'req_pars': (('start_point', PointRef), ('end_point', PointRef), ('dz', float)),
+class Floating(object):
+    def __init__(self, val):
+        self._val = float(val)
+
+    def __eq__(self, other):
+        if isinstance(other, Floating):
+            return self._val == other._val
+        else:
+            return self._val == other
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
+    def __repr__(self):
+        return '%.1f' % self._val
+    
+_command_metadata = {'PP_LINE': {'req_pars': (('start_point', PointRef), ('end_point', PointRef), ('dz', Floating)),
                                  'has_speed': True},
                      'PP_ARC': {'req_pars': (('start_point', int), ('mid_point', int), ('end_point', int)),
                                 'has_speed': True},
-                     'PR_ARC': {'req_pars': (('start_point', int), ('end_point', int), ('radius', float)),
+                     'PR_ARC': {'req_pars': (('start_point', int), ('end_point', int), ('radius', Floating)),
                                 'has_speed': True,},
-                     'PZ_ARC': {'req_pars': (('start_point', int), ('mid_point', int), ('dz', float)),
+                     'PZ_ARC': {'req_pars': (('start_point', int), ('mid_point', int), ('dz', Floating)),
                                 'has_speed': True,},
-                     'PRZ_ARC': {'req_pars': (('start_point', int), ('end_point', int), ('radius', float), ('dz', float)),
+                     'PRZ_ARC': {'req_pars': (('start_point', int), ('end_point', int), ('radius', Floating), ('dz', Floating)),
                                  'has_speed': True,},
-                     'LINE': {'req_pars': (('dx', float), ('dy', float), ('dz', float)),
+                     'LINE': {'req_pars': (('dx', Floating), ('dy', Floating), ('dz', Floating)),
                               'has_speed': True,},
-                     'ARC': {'req_pars': (('radius', float), ('al', float), ('fi', float)),
+                     'ARC': {'req_pars': (('radius', Floating), ('al', Floating), ('fi', Floating)),
                              'has_speed': True,},
-                     'REL_ARC': {'req_pars': (('dx', float), ('dy', float), ('radius', float)),
+                     'REL_ARC': {'req_pars': (('dx', Floating), ('dy', Floating), ('radius', Floating)),
                                  'has_speed': True,},
                      'ON': {'req_pars': (('device', int),)},
                      'OFF': {'req_pars': (('device', int),)},
                      'SCALE_X': {'req_pars': (('old_scale', int), ('new_scale', int))},
                      'SCALE_Y': {'req_pars': (('old_scale', int), ('new_scale', int))},
                      'SCALE_Z': {'req_pars': (('old_scale', int), ('new_scale', int))},
-                     'TURN': {'req_pars': (('mirror_x', bool), ('mirror_y', bool), ('angle', float))},
+                     'TURN': {'req_pars': (('mirror_x', bool), ('mirror_y', bool), ('angle', Floating))},
                      'SPEED': {'req_pars': (('speed', int),)},
                      'SET_PARK': {},
                      'GO_PARK': {},
@@ -89,7 +105,7 @@ _command_metadata = {'PP_LINE': {'req_pars': (('start_point', PointRef), ('end_p
                      'ENDLOOP': {},
                      'STOP': {},
                      'FINISH': {},
-                     'PAUSE': {'req_pars': (('delay', float),)},
+                     'PAUSE': {'req_pars': (('delay', Floating),)},
                      'COMMENT': {'req_pars': (('text', str),),},
                      'SPLINE': {'req_pars': (('p1', int), ('p2', int), ('p3', int), ('p4', int))},
                      }
