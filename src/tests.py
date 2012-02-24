@@ -28,7 +28,7 @@ class Test(unittest.TestCase):
 
     def test_points_load(self):
         instr, points = parse(StringIO('\x00\x00\x02\x00\x55\x00\x01\x00\x44\x00\x21\x00'))
-        self.assertEqual(points, [(0x55/10.0, 0.1), (0x44/10.0, 0x21/10.0)])
+        self.assertEqual((instr, points), ([], [(0x55/10.0, 0.1), (0x44/10.0, 0x21/10.0)]))
         
     def test_invalid_file1(self):
         self.assertRaises(ParseError, parse, StringIO())
