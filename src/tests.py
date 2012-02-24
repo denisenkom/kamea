@@ -94,6 +94,27 @@ class Test(unittest.TestCase):
                                                       '\x15\x00' + '\x00' * 30 +
                                                       '\x14\x03abd' + '\x00' * 27 +
                                                       '\x00\x00'))
+    
+    def test_label_redefined(self):
+        b = '\x02\x00' + \
+            '\x13\x03abc' + '\x00' * 27 + \
+            '\x13\x03abc' + '\x00' * 27 + \
+            '\x00\x00'
+        self.assertRaises(ParseError, parse, StringIO(b))
+        
+    def test_valid_label_reference(self):
+        b = '\x02\x00' + \
+            '\x16\x03abc' + '\x00' * 27 + \
+            '\x13\x03abc' + '\x00' * 27 + \
+            '\x00\x00'
+        parse(StringIO(b))
+    
+    def test_invalid_label_reference(self):
+        b = '\x02\x00' + \
+            '\x16\x03abc' + '\x00' * 27 + \
+            '\x13\x03abd' + '\x00' * 27 + \
+            '\x00\x00'
+        self.assertRaises(ParseError, parse, StringIO(b))
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

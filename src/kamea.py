@@ -61,7 +61,7 @@ class PointRef(object):
     def get(self):
         return self._pt
     
-class SubRef(object):
+class NameRef(object):
     def __init__(self, val):
         self._val = val
 
@@ -100,10 +100,10 @@ _command_metadata = {PP_LINE: {'req_pars': (('start_point', PointRef), ('end_poi
                      GO_PARK: {},
                      SET_ZERO: {},
                      GO_ZERO: {'x': ()},
-                     CALL: {'req_pars': (('proc_name', SubRef),),},
+                     CALL: {'req_pars': (('proc_name', NameRef),),},
                      RET: {},
                      LABEL: {'req_pars': (('name', str),),},
-                     GOTO: {'req_pars': (('label_name', str),),},
+                     GOTO: {'req_pars': (('label_name', NameRef),),},
                      SUB: {'req_pars': (('name', str),),},
                      LOOP: {'req_pars': (('n', int),)},
                      ENDLOOP: {},
@@ -137,6 +137,8 @@ def parse(stream):
     points_refs = []
     sub_refs = []
     subs = set()
+    label_refs = []
+    labels = set()
     for _ in range(instr_num):
         instr_offset = stream.tell()
         instr_buf = stream.read(32)
@@ -196,6 +198,13 @@ def parse(stream):
             subs.add(inst.name)
         elif instr_type == CALL:
             sub_refs.append((instr_offset, inst))
+        elif instr_type == LABEL:
+            if inst.name in labels:
+                _instr_error("Label redefined: '%s'" % inst.name, instr_offset)
+            labels.add(inst.name)
+        elif instr_type == GOTO:
+            label_refs.append((instr_offset, inst))
+            
         instructions.append(inst)
 
     points_num_buf = stream.read(2)
@@ -220,5 +229,10 @@ def parse(stream):
     for instr_offset, inst in sub_refs:
         if inst.proc_name._val not in subs:
             _instr_error("Unresolved reference to procedure: '%s'" % inst.proc_name._val, instr_offset)
+            
+    # validating label refs
+    for instr_offset, inst in label_refs:
+        if inst.label_name._val not in labels:
+            _instr_error("Unresolved reference to label: '%s'" % inst.label_name._val, instr_offset)
 
     return instructions, points
