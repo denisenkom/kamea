@@ -18,7 +18,7 @@ class Test(unittest.TestCase):
 
     def test_simple_instr(self):
         instrs, points = parse(StringIO('\x01\x00\x00\x080,1,2,3\x00' + '\x00' * 22 + '\x02\x00\x00\x00\x01\x00\x00\x00\x05\x00'))
-        self.assertEqual(instrs, [Instruction(PP_LINE,
+        self.assertEqual(instrs, [Instruction('PP_LINE',
                                               start_point=PointRef(0),
                                               end_point=PointRef(1),
                                               dz=2,
@@ -32,7 +32,7 @@ class Test(unittest.TestCase):
             '\x04\x0910,20,2,4' + '\x00' * 21 + \
             '\x00\x00'
         instrs, points = parse(StringIO(b))
-        self.assertEqual((instrs, points), ([Instruction(LINE,
+        self.assertEqual((instrs, points), ([Instruction('LINE',
                                                         dx=10,
                                                         dy=20,
                                                         dz=2,
@@ -131,26 +131,26 @@ class Test(unittest.TestCase):
         
     def test_simple_save(self):
         stm = StringIO()
-        write([Instruction(LINE, dx=10, dy=20, dz=2, spd=4)], stm)
+        write([Instruction('LINE', dx=10, dy=20, dz=2, spd=4)], stm)
         b = '\x01\x00' + \
             '\x04\x0910,20,2,4' + '\x00' * 21 + \
             '\x00\x00'
         self.assertEqual(stm.getvalue(), b)
         
     def test_too_many_instructions(self):
-        self.assertRaises(WriteError, write, [Instruction(LINE, dx=10, dy=20, dz=2, spd=4)]*65536, StringIO())
+        self.assertRaises(WriteError, write, [Instruction('LINE', dx=10, dy=20, dz=2, spd=4)]*65536, StringIO())
         
     def test_most_instructions(self):
         class NullStream():
             def write(self, buf):
                 pass
-        write([Instruction(LINE, dx=10, dy=20, dz=2, spd=4)]*65535, NullStream())
+        write([Instruction('LINE', dx=10, dy=20, dz=2, spd=4)]*65535, NullStream())
         
     def test_too_long_instruction_params(self):
-        self.assertRaises(WriteError, write, [Instruction(COMMENT, text='x'*31)], StringIO())
+        self.assertRaises(WriteError, write, [Instruction('COMMENT', text='x'*31)], StringIO())
         
     def test_repr(self):
-        val = Instruction(LINE, dx=10, dy=20, dz=2, spd=4)
+        val = Instruction('LINE', dx=10, dy=20, dz=2, spd=4)
         self.assertEqual(val, eval(repr(val)))
 
 if __name__ == "__main__":

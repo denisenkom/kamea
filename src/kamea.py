@@ -5,37 +5,16 @@ Created on Feb 21, 2012
 '''
 import struct
 
-PP_LINE = 0x00
-PP_ARC = 0x01
-PR_ARC = 0x02
-PZ_ARC = 0x03
-PRZ_ARC = 0x1e
-LINE = 0x04
-ARC = 0x06
-REL_ARC = 0x07
-SET_PARK = 0x08 
-GO_PARK = 0x09
-SET_ZERO = 0x0a
-GO_ZERO = 0x0b
-ON = 0x0c
-OFF = 0x0d
-SPEED = 0x0e
-SCALE_X = 0x0f
-SCALE_Y = 0x10
-SCALE_Z = 0x11
-TURN = 0x12
-LABEL = 0x13
-CALL = 0x14
-RET = 0x15
-GOTO = 0x16
-LOOP = 0x17
-ENDLOOP = 0x18
-STOP = 0x19
-FINISH = 0x1a
-COMMENT = 0x1b
-PAUSE = 0x1c
-SUB = 0x1f
-SPLINE = 0x28
+_CODES = (('PP_LINE', 0), ('PP_ARC', 1), ('PR_ARC', 2), ('PZ_ARC', 3),
+          ('PRZ_ARC', 30), ('LINE', 4), ('ARC', 6), ('REL_ARC', 7), ('SET_PARK', 8),
+          ('GO_PARK', 9), ('SET_ZERO', 10), ('GO_ZERO', 11), ('ON', 12), ('OFF', 13),
+          ('SPEED', 14), ('SCALE_X', 15), ('SCALE_Y', 16), ('SCALE_Z', 17), ('TURN', 18),
+          ('LABEL', 19), ('CALL', 20), ('RET', 21), ('GOTO', 22), ('LOOP', 23),
+          ('ENDLOOP', 24), ('STOP', 25), ('FINISH', 26), ('COMMENT', 27), ('PAUSE', 28),
+          ('SUB', 31), ('SPLINE', 40))
+
+_str_to_code = dict(_CODES)
+_code_to_str = dict([(b, a) for a, b in _CODES])
 
 MAX_SPD = 8
 MIN_SPD = 1
@@ -74,47 +53,45 @@ class NameRef(object):
     def __ne__(self, other):
         return self._val != other._val
     
-_command_metadata = {PP_LINE: {'req_pars': (('start_point', PointRef), ('end_point', PointRef), ('dz', float)),
-                               'has_speed': True,
-                               },
-                     PP_ARC: {'req_pars': (('start_point', int), ('mid_point', int), ('end_point', int)),
-                              'has_speed': True,
-                              },
-                     PR_ARC: {'req_pars': (('start_point', int), ('end_point', int), ('radius', float)),
+_command_metadata = {'PP_LINE': {'req_pars': (('start_point', PointRef), ('end_point', PointRef), ('dz', float)),
+                                 'has_speed': True},
+                     'PP_ARC': {'req_pars': (('start_point', int), ('mid_point', int), ('end_point', int)),
+                                'has_speed': True},
+                     'PR_ARC': {'req_pars': (('start_point', int), ('end_point', int), ('radius', float)),
+                                'has_speed': True,},
+                     'PZ_ARC': {'req_pars': (('start_point', int), ('mid_point', int), ('dz', float)),
+                                'has_speed': True,},
+                     'PRZ_ARC': {'req_pars': (('start_point', int), ('end_point', int), ('radius', float), ('dz', float)),
+                                 'has_speed': True,},
+                     'LINE': {'req_pars': (('dx', float), ('dy', float), ('dz', float)),
                               'has_speed': True,},
-                     PZ_ARC: {'req_pars': (('start_point', int), ('mid_point', int), ('dz', float)),
-                              'has_speed': True,},
-                     PRZ_ARC: {'req_pars': (('start_point', int), ('end_point', int), ('radius', float), ('dz', float)),
-                               'has_speed': True,},
-                     LINE: {'req_pars': (('dx', float), ('dy', float), ('dz', float)),
-                            'has_speed': True,},
-                     ARC: {'req_pars': (('radius', float), ('al', float), ('fi', float)),
-                            'has_speed': True,},
-                     REL_ARC: {'req_pars': (('dx', float), ('dy', float), ('radius', float)),
-                               'has_speed': True,},
-                     ON: {'req_pars': (('device', int),)},
-                     OFF: {'req_pars': (('device', int),)},
-                     SCALE_X: {'req_pars': (('old_scale', int), ('new_scale', int))},
-                     SCALE_Y: {'req_pars': (('old_scale', int), ('new_scale', int))},
-                     SCALE_Z: {'req_pars': (('old_scale', int), ('new_scale', int))},
-                     TURN: {'req_pars': (('mirror_x', bool), ('mirror_y', bool), ('angle', float))},
-                     SPEED: {'req_pars': (('speed', int),)},
-                     SET_PARK: {},
-                     GO_PARK: {},
-                     SET_ZERO: {},
-                     GO_ZERO: {'x': ()},
-                     CALL: {'req_pars': (('proc_name', NameRef),),},
-                     RET: {},
-                     LABEL: {'req_pars': (('name', str),),},
-                     GOTO: {'req_pars': (('label_name', NameRef),),},
-                     SUB: {'req_pars': (('name', str),),},
-                     LOOP: {'req_pars': (('n', int),)},
-                     ENDLOOP: {},
-                     STOP: {},
-                     FINISH: {},
-                     PAUSE: {'req_pars': (('delay', float),)},
-                     COMMENT: {'req_pars': (('text', str),),},
-                     SPLINE: {'req_pars': (('p1', int), ('p2', int), ('p3', int), ('p4', int))},
+                     'ARC': {'req_pars': (('radius', float), ('al', float), ('fi', float)),
+                             'has_speed': True,},
+                     'REL_ARC': {'req_pars': (('dx', float), ('dy', float), ('radius', float)),
+                                 'has_speed': True,},
+                     'ON': {'req_pars': (('device', int),)},
+                     'OFF': {'req_pars': (('device', int),)},
+                     'SCALE_X': {'req_pars': (('old_scale', int), ('new_scale', int))},
+                     'SCALE_Y': {'req_pars': (('old_scale', int), ('new_scale', int))},
+                     'SCALE_Z': {'req_pars': (('old_scale', int), ('new_scale', int))},
+                     'TURN': {'req_pars': (('mirror_x', bool), ('mirror_y', bool), ('angle', float))},
+                     'SPEED': {'req_pars': (('speed', int),)},
+                     'SET_PARK': {},
+                     'GO_PARK': {},
+                     'SET_ZERO': {},
+                     'GO_ZERO': {'x': ()},
+                     'CALL': {'req_pars': (('proc_name', NameRef),),},
+                     'RET': {},
+                     'LABEL': {'req_pars': (('name', str),),},
+                     'GOTO': {'req_pars': (('label_name', NameRef),),},
+                     'SUB': {'req_pars': (('name', str),),},
+                     'LOOP': {'req_pars': (('n', int),)},
+                     'ENDLOOP': {},
+                     'STOP': {},
+                     'FINISH': {},
+                     'PAUSE': {'req_pars': (('delay', float),)},
+                     'COMMENT': {'req_pars': (('text', str),),},
+                     'SPLINE': {'req_pars': (('p1', int), ('p2', int), ('p3', int), ('p4', int))},
                      }
 
 MAX_CMD_LEN = 30
@@ -138,7 +115,7 @@ class Instruction(object):
             if key[0] != '_' and key != 'instr_type':
                 params.append('%s=%s' % (key, repr(getattr(self, key))))
         params_str = ','.join(params)
-        return 'Instruction(%d%s)' % (self.instr_type, ',' + params_str if params_str else '')
+        return 'Instruction(%s%s)' % (repr(self.instr_type), ',' + params_str if params_str else '')
 
 def _instr_error(msg, instr_offset):
     raise ParseError('%s in instruction at offset 0x%x' % (msg, instr_offset))
@@ -159,11 +136,11 @@ def parse(stream):
         instr_buf = stream.read(32)
         if len(instr_buf) < 32:
             _instr_error('Unexpected end of file', instr_offset)
-        instr_type, = struct.unpack('B', instr_buf[0])
-        metadata = _command_metadata.get(instr_type)
-        if metadata is None:
-            _instr_error('Invalid command %d' % instr_type, instr_offset)
-
+        instr_code, = struct.unpack('B', instr_buf[0])
+        instr_type = _code_to_str.get(instr_code)
+        if instr_type is None:
+            _instr_error('Invalid command %s' % instr_type, instr_offset)
+        metadata = _command_metadata[instr_type]
         params_len, = struct.unpack('B', instr_buf[1])
         if params_len > MAX_CMD_LEN:
             _instr_error('Invalid command length %d' % params_len, instr_offset)
@@ -171,7 +148,7 @@ def parse(stream):
         params_str = instr_buf[2:2 + params_len]
         instr = Instruction(instr_type)
         instr._offset = instr_offset
-        if instr_type == PP_LINE:
+        if instr_type == 'PP_LINE':
             if not params_str:
                 _instr_error('Invalid parameters string', instr_offset)
             instr.updown = (ord(params_str[-1]) == 0)
@@ -208,17 +185,17 @@ def parse(stream):
                     _instr_error("Invalid speed value %s" % spd, instr_offset)
             else:
                 instr.spd = SPDDEF
-        if instr_type == SUB:
+        if instr_type == 'SUB':
             if instr.name in subs:
                 _instr_error("Procedure redefined: '%s'" % instr.name, instr_offset)
             subs.add(instr.name)
-        elif instr_type == CALL:
+        elif instr_type == 'CALL':
             sub_refs.append(instr)
-        elif instr_type == LABEL:
+        elif instr_type == 'LABEL':
             if instr.name in labels:
                 _instr_error("Label redefined: '%s'" % instr.name, instr_offset)
             labels.add(instr.name)
-        elif instr_type == GOTO:
+        elif instr_type == 'GOTO':
             label_refs.append(instr)
             
         instructions.append(instr)
@@ -262,7 +239,7 @@ def write(instructions, stream):
     num_buf = struct.pack('<H', len(instructions))
     stream.write(num_buf)
     for instr in instructions:
-        code_buf = struct.pack('B', instr.instr_type)
+        code_buf = struct.pack('B', _str_to_code[instr.instr_type])
         stream.write(code_buf)
         metadata = _command_metadata[instr.instr_type]
         params = [repr(getattr(instr, name)) for name, _ in metadata.get('req_pars', ())]
