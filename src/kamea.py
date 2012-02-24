@@ -245,8 +245,12 @@ def parse(stream):
 
     return instructions, points
 
+MAX_INSTRUCTIONS = 2**16
 
 def write(instructions, stream):
+    if len(instructions) > MAX_INSTRUCTIONS:
+        raise WriteError("Too many instructions %d, maximum allowed is %d", (len(instructions), MAX_INSTRUCTIONS))
+        
     num_buf = struct.pack('<H', len(instructions))
     stream.write(num_buf)
     for instr in instructions:
