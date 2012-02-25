@@ -126,39 +126,6 @@ _command_metadata = {'PP_LINE': {'req_pars': (('start_point', PointRef), ('end_p
 
 MAX_CMD_LEN = 30
 
-def Instruction(instr_type, **kwargs):
-    instr = _Instruction(instr_type)
-    instr._metadata = _command_metadata[instr_type]
-    req_pars = instr._metadata.get('req_pars', ())
-    for name, conv in req_pars:
-        setattr(instr, name, conv(kwargs[name]))
-    if instr._metadata.get('has_speed'):
-        instr.spd = kwargs.get('spd', SPDDEF)
-    if instr_type == 'PP_LINE' and 'updown' in kwargs:
-        instr.updown = kwargs['updown']
-    return instr
-
-class _Instruction(object):
-    def __init__(self, instr_type):
-        self.instr_type = instr_type
-
-    def __eq__(self, other):
-        for key in self.__dict__:
-            if key[0] != '_':
-                if self.__dict__[key] != other.__dict__[key]:
-                    return False
-        return True
-    def __ne__(self, other):
-        return not self.__eq__(other)
-    
-    def __repr__(self):
-        params = []
-        for key in self.__dict__:
-            if key[0] != '_' and key != 'instr_type':
-                params.append('%s=%s' % (key, repr(getattr(self, key))))
-        params_str = ','.join(params)
-        return 'Instruction(%s%s)' % (repr(self.instr_type), ',' + params_str if params_str else '')
-
 def _instr_error(msg, instr_offset):
     raise ParseError('%s in instruction at offset 0x%x' % (msg, instr_offset))
 
@@ -188,12 +155,11 @@ def parse(stream):
             _instr_error('Invalid command length %d' % params_len, instr_offset)
 
         params_str = instr_buf[2:2 + params_len]
-        instr = _Instruction(instr_type)
-        instr._offset = instr_offset
+        instr = {'type': instr_type}
         if instr_type == 'PP_LINE':
             if not params_str:
                 _instr_error('Invalid parameters string', instr_offset)
-            instr.updown = (ord(params_str[-1]) == 0)
+            instr['updown'] = (ord(params_str[-1]) == 0)
             params_str = params_str[0:-1]
         req = metadata.get('req_pars', ())
         opt = ()
@@ -208,9 +174,9 @@ def parse(stream):
                 val = conv(params[i])
             except ValueError, e:
                 _instr_error(e, instr_offset)
-            setattr(instr, name, val)
+            instr[name] = val
             if isinstance(val, PointRef):
-                points_refs.append((instr, val, name))
+                points_refs.append((instr, instr_offset, val, name))
         opt_res = params[len(req):]
         for i in range(min(len(opt), len(params) - len(req))):
             try:
@@ -222,24 +188,24 @@ def parse(stream):
             if opt_res:
                 spd = opt_res[0]
                 if MIN_SPD <= spd <= MAX_SPD:
-                    instr.spd = spd
+                    instr['spd'] = spd
                 else:
                     _instr_error("Invalid speed value %s" % spd, instr_offset)
             else:
-                instr.spd = SPDDEF
+                instr['spd'] = SPDDEF
 
         if instr_type == 'SUB':
-            if instr.name in subs:
-                _instr_error("Procedure redefined: '%s'" % instr.name, instr_offset)
-            subs.add(instr.name)
+            if instr['name'] in subs:
+                _instr_error("Procedure redefined: '%s'" % instr['name'], instr_offset)
+            subs.add(instr['name'])
         elif instr_type == 'CALL':
-            sub_refs.append(instr)
+            sub_refs.append((instr, instr_offset))
         elif instr_type == 'LABEL':
-            if instr.name in labels:
-                _instr_error("Label redefined: '%s'" % instr.name, instr_offset)
-            labels.add(instr.name)
+            if instr['name'] in labels:
+                _instr_error("Label redefined: '%s'" % instr['name'], instr_offset)
+            labels.add(instr['name'])
         elif instr_type == 'GOTO':
-            label_refs.append(instr)
+            label_refs.append((instr, instr_offset))
             
         instructions.append(instr)
 
@@ -256,20 +222,20 @@ def parse(stream):
         points.append((x/10.0, y/10.0))
 
     # validating/fixing points refs
-    for instr, ref, name in points_refs:
+    for instr, offset, ref, name in points_refs:
         if ref._val >= len(points):
-            _instr_error("Referenced point doesn't exist, point # %d" % ref._val, instr._offset)
+            _instr_error("Referenced point doesn't exist, point # %d" % ref._val, offset)
         ref._pt = points[ref._val]
         
     # validating proc refs
-    for instr in sub_refs:
-        if instr.proc_name._val not in subs:
-            _instr_error("Unresolved reference to procedure: '%s'" % instr.proc_name._val, instr._offset)
+    for instr, offset in sub_refs:
+        if instr['proc_name']._val not in subs:
+            _instr_error("Unresolved reference to procedure: '%s'" % instr['proc_name']._val, offset)
             
     # validating label refs
-    for instr in label_refs:
-        if instr.label_name._val not in labels:
-            _instr_error("Unresolved reference to label: '%s'" % instr.label_name._val, instr._offset)
+    for instr, offset in label_refs:
+        if instr['label_name']._val not in labels:
+            _instr_error("Unresolved reference to label: '%s'" % instr['label_name']._val, offset)
 
     return instructions, points
 
@@ -282,14 +248,18 @@ def write(instructions, stream):
     num_buf = struct.pack('<H', len(instructions))
     stream.write(num_buf)
     for instr in instructions:
-        code_buf = struct.pack('B', _str_to_code[instr.instr_type])
+        code_buf = struct.pack('B', _str_to_code[instr['type']])
         stream.write(code_buf)
-        metadata = _command_metadata[instr.instr_type]
-        params = [str(getattr(instr, name)) for name, _ in metadata.get('req_pars', ())]
+        metadata = _command_metadata[instr['type']]
+        params = []
+        for name, conv in metadata.get('req_pars', ()):
+            params.append(str(conv(instr[name])))
         if metadata.get('has_speed', False):
-            if instr.spd != SPDDEF:
-                params.append(repr(instr.spd))
+            if instr['spd'] != SPDDEF:
+                params.append(str(instr['spd']))
         params_str = ','.join(params)
+        if instr['type'] == 'PP_LINE':
+            params_str += '\x00' if instr['updown'] else '\x01'
         if len(params_str) > 30:
             raise WriteError("Bad instruction, parameters are too long: '%s'" % params_str)
         stream.write(struct.pack('B', len(params_str)))
