@@ -83,45 +83,45 @@ class Floating(object):
     def __repr__(self):
         return '%.1f' % self._val
     
-_command_metadata = {'PP_LINE': {'req_pars': (('start_point', PointRef), ('end_point', PointRef), ('dz', Floating)),
+_command_metadata = {'PP_LINE': {'params': (('start_point', PointRef), ('end_point', PointRef), ('dz', Floating)),
                                  'has_speed': True},
-                     'PP_ARC': {'req_pars': (('start_point', int), ('mid_point', int), ('end_point', int)),
+                     'PP_ARC': {'params': (('start_point', int), ('mid_point', int), ('end_point', int)),
                                 'has_speed': True},
-                     'PR_ARC': {'req_pars': (('start_point', int), ('end_point', int), ('radius', Floating)),
+                     'PR_ARC': {'params': (('start_point', int), ('end_point', int), ('radius', Floating)),
                                 'has_speed': True,},
-                     'PZ_ARC': {'req_pars': (('start_point', int), ('mid_point', int), ('dz', Floating)),
+                     'PZ_ARC': {'params': (('start_point', int), ('mid_point', int), ('dz', Floating)),
                                 'has_speed': True,},
-                     'PRZ_ARC': {'req_pars': (('start_point', int), ('end_point', int), ('radius', Floating), ('dz', Floating)),
+                     'PRZ_ARC': {'params': (('start_point', int), ('end_point', int), ('radius', Floating), ('dz', Floating)),
                                  'has_speed': True,},
-                     'LINE': {'req_pars': (('dx', Floating), ('dy', Floating), ('dz', Floating)),
+                     'LINE': {'params': (('dx', Floating), ('dy', Floating), ('dz', Floating)),
                               'has_speed': True,},
-                     'ARC': {'req_pars': (('radius', Floating), ('al', Floating), ('fi', Floating)),
+                     'ARC': {'params': (('radius', Floating), ('al', Floating), ('fi', Floating)),
                              'has_speed': True,},
-                     'REL_ARC': {'req_pars': (('dx', Floating), ('dy', Floating), ('radius', Floating)),
+                     'REL_ARC': {'params': (('dx', Floating), ('dy', Floating), ('radius', Floating)),
                                  'has_speed': True,},
-                     'ON': {'req_pars': (('device', int),)},
-                     'OFF': {'req_pars': (('device', int),)},
-                     'SCALE_X': {'req_pars': (('old_scale', int), ('new_scale', int))},
-                     'SCALE_Y': {'req_pars': (('old_scale', int), ('new_scale', int))},
-                     'SCALE_Z': {'req_pars': (('old_scale', int), ('new_scale', int))},
-                     'TURN': {'req_pars': (('mirror_x', bool), ('mirror_y', bool), ('angle', Floating))},
-                     'SPEED': {'req_pars': (('speed', int),)},
+                     'ON': {'params': (('device', int),)},
+                     'OFF': {'params': (('device', int),)},
+                     'SCALE_X': {'params': (('old_scale', int), ('new_scale', int))},
+                     'SCALE_Y': {'params': (('old_scale', int), ('new_scale', int))},
+                     'SCALE_Z': {'params': (('old_scale', int), ('new_scale', int))},
+                     'TURN': {'params': (('mirror_x', bool), ('mirror_y', bool), ('angle', Floating))},
+                     'SPEED': {'params': (('speed', int),)},
                      'SET_PARK': {},
                      'GO_PARK': {},
                      'SET_ZERO': {},
                      'GO_ZERO': {'x': ()},
-                     'CALL': {'req_pars': (('proc_name', NameRef),),},
+                     'CALL': {'params': (('proc_name', NameRef),),},
                      'RET': {},
-                     'LABEL': {'req_pars': (('name', str),),},
-                     'GOTO': {'req_pars': (('label_name', NameRef),),},
-                     'SUB': {'req_pars': (('name', str),),},
-                     'LOOP': {'req_pars': (('n', int),)},
+                     'LABEL': {'params': (('name', str),),},
+                     'GOTO': {'params': (('label_name', NameRef),),},
+                     'SUB': {'params': (('name', str),),},
+                     'LOOP': {'params': (('n', int),)},
                      'ENDLOOP': {},
                      'STOP': {},
                      'FINISH': {},
-                     'PAUSE': {'req_pars': (('delay', Floating),)},
-                     'COMMENT': {'req_pars': (('text', str),),},
-                     'SPLINE': {'req_pars': (('p1', int), ('p2', int), ('p3', int), ('p4', int))},
+                     'PAUSE': {'params': (('delay', Floating),)},
+                     'COMMENT': {'params': (('text', str),),},
+                     'SPLINE': {'params': (('p1', int), ('p2', int), ('p3', int), ('p4', int))},
                      }
 
 MAX_CMD_LEN = 30
@@ -161,7 +161,7 @@ def parse(stream):
                 _instr_error('Invalid parameters string', instr_offset)
             instr['updown'] = (ord(params_str[-1]) == 0)
             params_str = params_str[0:-1]
-        req = metadata.get('req_pars', ())
+        req = metadata.get('params', ())
         opt = ()
         if metadata.get('has_speed', False):
             opt = (int,)
@@ -252,7 +252,7 @@ def write(instructions, stream):
         stream.write(code_buf)
         metadata = _command_metadata[instr['type']]
         params = []
-        for name, conv in metadata.get('req_pars', ()):
+        for name, conv in metadata.get('params', ()):
             params.append(str(conv(instr[name])))
         if metadata.get('has_speed', False):
             if instr['spd'] != SPDDEF:
