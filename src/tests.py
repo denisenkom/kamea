@@ -133,7 +133,7 @@ class Test(unittest.TestCase):
         stm = StringIO()
         write([Instruction('LINE', dx=10, dy=20, dz=2, spd=4)], stm)
         b = '\x01\x00' + \
-            '\x04\x0910,20,2,4' + '\x00' * 21 + \
+            '\x04\x0f10.0,20.0,2.0,4' + '\x00' * 15 + \
             '\x00\x00'
         self.assertEqual(stm.getvalue(), b)
         

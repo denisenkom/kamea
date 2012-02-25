@@ -28,11 +28,13 @@ class WriteError(Exception):
     
 class PointRef(object):
     def __init__(self, val):
-        if isinstance(val, str):
+        if isinstance(val, PointRef):
+            self._val = val._val
+        else:
             val = int(val)
-        if val < 0:
-            raise ValueError('Invalid point reference: %d' % val)
-        self._val = val
+            if val < 0:
+                raise ValueError('Invalid point reference: %d' % val)
+            self._val = val
     
     def __eq__(self, other):
         return self._val == other._val
@@ -40,12 +42,18 @@ class PointRef(object):
     def __ne__(self, other):
         return self._val != other._val
     
+    def __repr__(self):
+        return repr(self._val)
+    
     def get(self):
         return self._pt
     
 class NameRef(object):
     def __init__(self, val):
-        self._val = val
+        if isinstance(val, NameRef):
+            self._val = val._val
+        else:
+            self._val = val
 
     def __eq__(self, other):
         return self._val == other._val
@@ -53,9 +61,15 @@ class NameRef(object):
     def __ne__(self, other):
         return self._val != other._val
     
+    def __repr__(self):
+        return self._val
+    
 class Floating(object):
     def __init__(self, val):
-        self._val = float(val)
+        if isinstance(val, Floating):
+            self._val = val._val
+        else:
+            self._val = float(val)
 
     def __eq__(self, other):
         if isinstance(other, Floating):
@@ -112,10 +126,22 @@ _command_metadata = {'PP_LINE': {'req_pars': (('start_point', PointRef), ('end_p
 
 MAX_CMD_LEN = 30
 
-class Instruction(object):
-    def __init__(self, instr_type, **kwargs):
+def Instruction(instr_type, **kwargs):
+    instr = _Instruction(instr_type)
+    instr._metadata = _command_metadata[instr_type]
+    req_pars = instr._metadata.get('req_pars', ())
+    for name, conv in req_pars:
+        setattr(instr, name, conv(kwargs[name]))
+    if instr._metadata.get('has_speed'):
+        instr.spd = kwargs.get('spd', SPDDEF)
+    if instr_type == 'PP_LINE' and 'updown' in kwargs:
+        instr.updown = kwargs['updown']
+    return instr
+
+class _Instruction(object):
+    def __init__(self, instr_type):
         self.instr_type = instr_type
-        self.__dict__.update(kwargs)
+
     def __eq__(self, other):
         for key in self.__dict__:
             if key[0] != '_':
@@ -162,7 +188,7 @@ def parse(stream):
             _instr_error('Invalid command length %d' % params_len, instr_offset)
 
         params_str = instr_buf[2:2 + params_len]
-        instr = Instruction(instr_type)
+        instr = _Instruction(instr_type)
         instr._offset = instr_offset
         if instr_type == 'PP_LINE':
             if not params_str:
@@ -201,6 +227,7 @@ def parse(stream):
                     _instr_error("Invalid speed value %s" % spd, instr_offset)
             else:
                 instr.spd = SPDDEF
+
         if instr_type == 'SUB':
             if instr.name in subs:
                 _instr_error("Procedure redefined: '%s'" % instr.name, instr_offset)
