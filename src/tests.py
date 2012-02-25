@@ -10,7 +10,15 @@ from kamea import *
 
 class Test(unittest.TestCase):
     def test_real_parse(self):
-        res = parse(open(os.path.join(os.path.dirname(__file__), r'..\test\circle.kam'), 'r'))
+        fname = os.path.join(os.path.dirname(__file__), r'..\test\circle.kam')
+        with open(fname, 'rb') as f:
+            res = parse(f)
+        self.assertEqual(res, eval(repr(res)))
+        
+    def test_rect_parse(self):
+        fname = os.path.join(os.path.dirname(__file__), r'..\test\rect.kam')
+        with open(fname, 'rb') as f:
+            res = parse(f)
         self.assertEqual(res, eval(repr(res)))
 
     def test_empty_file(self):
@@ -131,11 +139,17 @@ class Test(unittest.TestCase):
         
     def test_simple_save(self):
         stm = StringIO()
-        write([Instruction('LINE', dx=10, dy=20, dz=2, spd=4)], stm)
-        b = '\x01\x00' + \
+        instrs = [Instruction('LINE', dx=10, dy=20, dz=2, spd=4),
+                  Instruction('COMMENT', text='test comment')]
+        write(instrs, stm)
+        b = '\x02\x00' + \
             '\x04\x0f10.0,20.0,2.0,4' + '\x00' * 15 + \
+            '\x1b\x0ctest comment' + '\x00' * 18 + \
             '\x00\x00'
         self.assertEqual(stm.getvalue(), b)
+        stm.pos = 0
+        read_result = parse(stm)
+        self.assertEqual((instrs, []), read_result)
         
     def test_too_many_instructions(self):
         self.assertRaises(WriteError, write, [Instruction('LINE', dx=10, dy=20, dz=2, spd=4)]*65536, StringIO())

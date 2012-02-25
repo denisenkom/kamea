@@ -285,7 +285,7 @@ def write(instructions, stream):
         code_buf = struct.pack('B', _str_to_code[instr.instr_type])
         stream.write(code_buf)
         metadata = _command_metadata[instr.instr_type]
-        params = [repr(getattr(instr, name)) for name, _ in metadata.get('req_pars', ())]
+        params = [str(getattr(instr, name)) for name, _ in metadata.get('req_pars', ())]
         if metadata.get('has_speed', False):
             if instr.spd != SPDDEF:
                 params.append(repr(instr.spd))
