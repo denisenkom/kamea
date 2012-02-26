@@ -29,72 +29,72 @@ class WriteError(Exception):
 class ValidationError(Exception):
     pass
     
-class Integer(object):
+class _Integer(object):
     @classmethod
     def parse(cls, val): return int(val)
     @classmethod
     def write(cls, val): return '%d' % val
     
-class Floating(object):
+class _Floating(object):
     @classmethod
     def parse(cls, val): return float(val)
     @classmethod
     def write(cls, val): return '%.1f' % val
     
-class String(object):
+class _String(object):
     @classmethod
     def parse(cls, val): return str(val)
     @classmethod
     def write(cls, val): return val
     
-class Boolean:
+class _Boolean:
     @classmethod
     def parse(cls, val): return bool(val)
     @classmethod
     def write(cls, val): return '1' if val else '0'
     
-class PointRef(Integer): pass
-class NameRef(String): pass
+class _PointRef(_Integer): pass
+class _NameRef(_String): pass
     
-_command_metadata = {'PP_LINE': {'params': (('start_point', PointRef), ('end_point', PointRef), ('dz', Floating)),
+_command_metadata = {'PP_LINE': {'params': (('start_point', _PointRef), ('end_point', _PointRef), ('dz', _Floating)),
                                  'has_speed': True},
-                     'PP_ARC': {'params': (('start_point', PointRef), ('mid_point', PointRef), ('end_point', PointRef)),
+                     'PP_ARC': {'params': (('start_point', _PointRef), ('mid_point', _PointRef), ('end_point', _PointRef)),
                                 'has_speed': True},
-                     'PR_ARC': {'params': (('start_point', PointRef), ('end_point', PointRef), ('radius', Floating)),
+                     'PR_ARC': {'params': (('start_point', _PointRef), ('end_point', _PointRef), ('radius', _Floating)),
                                 'has_speed': True,},
-                     'PZ_ARC': {'params': (('start_point', PointRef), ('mid_point', PointRef), ('dz', Floating)),
+                     'PZ_ARC': {'params': (('start_point', _PointRef), ('mid_point', _PointRef), ('dz', _Floating)),
                                 'has_speed': True,},
-                     'PRZ_ARC': {'params': (('start_point', PointRef), ('end_point', PointRef), ('radius', Floating), ('dz', Floating)),
+                     'PRZ_ARC': {'params': (('start_point', _PointRef), ('end_point', _PointRef), ('radius', _Floating), ('dz', _Floating)),
                                  'has_speed': True,},
-                     'LINE': {'params': (('dx', Floating), ('dy', Floating), ('dz', Floating)),
+                     'LINE': {'params': (('dx', _Floating), ('dy', _Floating), ('dz', _Floating)),
                               'has_speed': True,},
-                     'ARC': {'params': (('radius', Floating), ('al', Floating), ('fi', Floating)),
+                     'ARC': {'params': (('radius', _Floating), ('al', _Floating), ('fi', _Floating)),
                              'has_speed': True,},
-                     'REL_ARC': {'params': (('dx', Floating), ('dy', Floating), ('radius', Floating)),
+                     'REL_ARC': {'params': (('dx', _Floating), ('dy', _Floating), ('radius', _Floating)),
                                  'has_speed': True,},
-                     'ON': {'params': (('device', Integer),)},
-                     'OFF': {'params': (('device', Integer),)},
-                     'SCALE_X': {'params': (('old_scale', Integer), ('new_scale', Integer))},
-                     'SCALE_Y': {'params': (('old_scale', Integer), ('new_scale', Integer))},
-                     'SCALE_Z': {'params': (('old_scale', Integer), ('new_scale', Integer))},
-                     'TURN': {'params': (('mirror_x', Boolean), ('mirror_y', Boolean), ('angle', Floating))},
-                     'SPEED': {'params': (('speed', Integer),)},
+                     'ON': {'params': (('device', _Integer),)},
+                     'OFF': {'params': (('device', _Integer),)},
+                     'SCALE_X': {'params': (('old_scale', _Integer), ('new_scale', _Integer))},
+                     'SCALE_Y': {'params': (('old_scale', _Integer), ('new_scale', _Integer))},
+                     'SCALE_Z': {'params': (('old_scale', _Integer), ('new_scale', _Integer))},
+                     'TURN': {'params': (('mirror_x', _Boolean), ('mirror_y', _Boolean), ('angle', _Floating))},
+                     'SPEED': {'params': (('speed', _Integer),)},
                      'SET_PARK': {},
                      'GO_PARK': {},
                      'SET_ZERO': {},
                      'GO_ZERO': {'x': ()},
-                     'CALL': {'params': (('proc_name', NameRef),),},
+                     'CALL': {'params': (('proc_name', _NameRef),),},
                      'RET': {},
-                     'LABEL': {'params': (('name', String),),},
-                     'GOTO': {'params': (('label_name', NameRef),),},
-                     'SUB': {'params': (('name', String),),},
-                     'LOOP': {'params': (('n', Integer),)},
+                     'LABEL': {'params': (('name', _String),),},
+                     'GOTO': {'params': (('label_name', _NameRef),),},
+                     'SUB': {'params': (('name', _String),),},
+                     'LOOP': {'params': (('n', _Integer),)},
                      'ENDLOOP': {},
                      'STOP': {},
                      'FINISH': {},
-                     'PAUSE': {'params': (('delay', Floating),)},
-                     'COMMENT': {'params': (('text', String),),},
-                     'SPLINE': {'params': (('p1', PointRef), ('p2', PointRef), ('p3', PointRef), ('p4', PointRef))},
+                     'PAUSE': {'params': (('delay', _Floating),)},
+                     'COMMENT': {'params': (('text', _String),),},
+                     'SPLINE': {'params': (('p1', _PointRef), ('p2', _PointRef), ('p3', _PointRef), ('p4', _PointRef))},
                      }
 
 MAX_CMD_LEN = 30
@@ -132,7 +132,7 @@ def parse(stream):
         req = metadata.get('params', ())
         opt = ()
         if metadata.get('has_speed', False):
-            opt = (Integer,)
+            opt = (_Integer,)
         params_str = filter(lambda c: 32 <= ord(c) <= 126, params_str)
         params = params_str.split(',')
         if len(params) < len(req):
@@ -193,7 +193,7 @@ def _validate(instructions, points):
             except ValueError, e:
                 errors.append(("Invalid value '%s' for parameter %s: %s" % (instr[name], name, e), instr, instr_idx))
                 continue
-            if issubclass(conv, PointRef):
+            if issubclass(conv, _PointRef):
                 points_refs.append((instr, instr_idx, val, name))
         if metadata.get('has_speed', False) and 'spd' in instr:
             if not (MIN_SPD <= instr['spd'] <= MAX_SPD):
