@@ -270,7 +270,7 @@ def write(instructions, stream):
         for name, conv in metadata.get('params', ()):
             params.append(conv.write(instr[name]))
         if metadata.get('has_speed', False):
-            if instr['spd'] != SPDDEF:
+            if 'spd' in instr:
                 params.append(str(instr['spd']))
         params_str = ','.join(params)
         if instr['type'] == 'PP_LINE':
