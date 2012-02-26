@@ -25,73 +25,46 @@ class ParseError(Exception):
 
 class WriteError(Exception):
     pass
-    
-class PointRef(object):
-    def __init__(self, val):
-        if isinstance(val, PointRef):
-            self._val = val._val
-        else:
-            val = int(val)
-            if val < 0:
-                raise ValueError('Invalid point reference: %d' % val)
-            self._val = val
-    
-    def __eq__(self, other):
-        return self._val == other._val
-    
-    def __ne__(self, other):
-        return self._val != other._val
-    
-    def __repr__(self):
-        return repr(self._val)
-    
-    def get(self):
-        return self._pt
-    
-class NameRef(object):
-    def __init__(self, val):
-        if isinstance(val, NameRef):
-            self._val = val._val
-        else:
-            self._val = val
 
-    def __eq__(self, other):
-        return self._val == other._val
+class ValidationError(Exception):
+    pass
     
-    def __ne__(self, other):
-        return self._val != other._val
-    
-    def __repr__(self):
-        return self._val
+class Integer(object):
+    @classmethod
+    def parse(cls, val): return int(val)
+    @classmethod
+    def write(cls, val): return '%d' % val
     
 class Floating(object):
-    def __init__(self, val):
-        if isinstance(val, Floating):
-            self._val = val._val
-        else:
-            self._val = float(val)
-
-    def __eq__(self, other):
-        if isinstance(other, Floating):
-            return self._val == other._val
-        else:
-            return self._val == other
+    @classmethod
+    def parse(cls, val): return float(val)
+    @classmethod
+    def write(cls, val): return '%.1f' % val
     
-    def __ne__(self, other):
-        return not self.__eq__(other)
+class String(object):
+    @classmethod
+    def parse(cls, val): return str(val)
+    @classmethod
+    def write(cls, val): return val
     
-    def __repr__(self):
-        return '%.1f' % self._val
+class Boolean:
+    @classmethod
+    def parse(cls, val): return bool(val)
+    @classmethod
+    def write(cls, val): return '1' if val else '0'
+    
+class PointRef(Integer): pass
+class NameRef(String): pass
     
 _command_metadata = {'PP_LINE': {'params': (('start_point', PointRef), ('end_point', PointRef), ('dz', Floating)),
                                  'has_speed': True},
-                     'PP_ARC': {'params': (('start_point', int), ('mid_point', int), ('end_point', int)),
+                     'PP_ARC': {'params': (('start_point', PointRef), ('mid_point', PointRef), ('end_point', PointRef)),
                                 'has_speed': True},
-                     'PR_ARC': {'params': (('start_point', int), ('end_point', int), ('radius', Floating)),
+                     'PR_ARC': {'params': (('start_point', PointRef), ('end_point', PointRef), ('radius', Floating)),
                                 'has_speed': True,},
-                     'PZ_ARC': {'params': (('start_point', int), ('mid_point', int), ('dz', Floating)),
+                     'PZ_ARC': {'params': (('start_point', PointRef), ('mid_point', PointRef), ('dz', Floating)),
                                 'has_speed': True,},
-                     'PRZ_ARC': {'params': (('start_point', int), ('end_point', int), ('radius', Floating), ('dz', Floating)),
+                     'PRZ_ARC': {'params': (('start_point', PointRef), ('end_point', PointRef), ('radius', Floating), ('dz', Floating)),
                                  'has_speed': True,},
                      'LINE': {'params': (('dx', Floating), ('dy', Floating), ('dz', Floating)),
                               'has_speed': True,},
@@ -99,29 +72,29 @@ _command_metadata = {'PP_LINE': {'params': (('start_point', PointRef), ('end_poi
                              'has_speed': True,},
                      'REL_ARC': {'params': (('dx', Floating), ('dy', Floating), ('radius', Floating)),
                                  'has_speed': True,},
-                     'ON': {'params': (('device', int),)},
-                     'OFF': {'params': (('device', int),)},
-                     'SCALE_X': {'params': (('old_scale', int), ('new_scale', int))},
-                     'SCALE_Y': {'params': (('old_scale', int), ('new_scale', int))},
-                     'SCALE_Z': {'params': (('old_scale', int), ('new_scale', int))},
-                     'TURN': {'params': (('mirror_x', bool), ('mirror_y', bool), ('angle', Floating))},
-                     'SPEED': {'params': (('speed', int),)},
+                     'ON': {'params': (('device', Integer),)},
+                     'OFF': {'params': (('device', Integer),)},
+                     'SCALE_X': {'params': (('old_scale', Integer), ('new_scale', Integer))},
+                     'SCALE_Y': {'params': (('old_scale', Integer), ('new_scale', Integer))},
+                     'SCALE_Z': {'params': (('old_scale', Integer), ('new_scale', Integer))},
+                     'TURN': {'params': (('mirror_x', Boolean), ('mirror_y', Boolean), ('angle', Floating))},
+                     'SPEED': {'params': (('speed', Integer),)},
                      'SET_PARK': {},
                      'GO_PARK': {},
                      'SET_ZERO': {},
                      'GO_ZERO': {'x': ()},
                      'CALL': {'params': (('proc_name', NameRef),),},
                      'RET': {},
-                     'LABEL': {'params': (('name', str),),},
+                     'LABEL': {'params': (('name', String),),},
                      'GOTO': {'params': (('label_name', NameRef),),},
-                     'SUB': {'params': (('name', str),),},
-                     'LOOP': {'params': (('n', int),)},
+                     'SUB': {'params': (('name', String),),},
+                     'LOOP': {'params': (('n', Integer),)},
                      'ENDLOOP': {},
                      'STOP': {},
                      'FINISH': {},
                      'PAUSE': {'params': (('delay', Floating),)},
-                     'COMMENT': {'params': (('text', str),),},
-                     'SPLINE': {'params': (('p1', int), ('p2', int), ('p3', int), ('p4', int))},
+                     'COMMENT': {'params': (('text', String),),},
+                     'SPLINE': {'params': (('p1', PointRef), ('p2', PointRef), ('p3', PointRef), ('p4', PointRef))},
                      }
 
 MAX_CMD_LEN = 30
@@ -135,11 +108,6 @@ def parse(stream):
     if len(instr_num_buf) < 2:
         raise ParseError('Bad file format')
     instr_num, = struct.unpack('<H', instr_num_buf)
-    points_refs = []
-    sub_refs = []
-    subs = set()
-    label_refs = []
-    labels = set()
     for _ in range(instr_num):
         instr_offset = stream.tell()
         instr_buf = stream.read(32)
@@ -164,48 +132,26 @@ def parse(stream):
         req = metadata.get('params', ())
         opt = ()
         if metadata.get('has_speed', False):
-            opt = (int,)
+            opt = (Integer,)
         params_str = filter(lambda c: 32 <= ord(c) <= 126, params_str)
         params = params_str.split(',')
         if len(params) < len(req):
             _instr_error('Missing required parameters', instr_offset)
         for i, (name, conv) in enumerate(req):
             try:
-                val = conv(params[i])
+                val = conv.parse(params[i])
             except ValueError, e:
                 _instr_error(e, instr_offset)
             instr[name] = val
-            if isinstance(val, PointRef):
-                points_refs.append((instr, instr_offset, val, name))
         opt_res = params[len(req):]
         for i in range(min(len(opt), len(params) - len(req))):
             try:
-                val = opt[i](opt_res[i])
+                val = opt[i].parse(opt_res[i])
             except ValueError, e:
                 _instr_error(e, instr_offset)
-            opt_res[i] = opt[i](opt_res[i])
-        if metadata.get('has_speed', False):
-            if opt_res:
-                spd = opt_res[0]
-                if MIN_SPD <= spd <= MAX_SPD:
-                    instr['spd'] = spd
-                else:
-                    _instr_error("Invalid speed value %s" % spd, instr_offset)
-            else:
-                instr['spd'] = SPDDEF
-
-        if instr_type == 'SUB':
-            if instr['name'] in subs:
-                _instr_error("Procedure redefined: '%s'" % instr['name'], instr_offset)
-            subs.add(instr['name'])
-        elif instr_type == 'CALL':
-            sub_refs.append((instr, instr_offset))
-        elif instr_type == 'LABEL':
-            if instr['name'] in labels:
-                _instr_error("Label redefined: '%s'" % instr['name'], instr_offset)
-            labels.add(instr['name'])
-        elif instr_type == 'GOTO':
-            label_refs.append((instr, instr_offset))
+            opt_res[i] = opt[i].parse(opt_res[i])
+        if metadata.get('has_speed', False) and opt_res:
+            instr['spd'] = opt_res[0]
             
         instructions.append(instr)
 
@@ -220,31 +166,73 @@ def parse(stream):
             raise ParseError('Unexpected end of file when loading points')
         x, y = struct.unpack('<HH', point_buf)
         points.append((x/10.0, y/10.0))
-
-    # validating/fixing points refs
-    for instr, offset, ref, name in points_refs:
-        if ref._val >= len(points):
-            _instr_error("Referenced point doesn't exist, point # %d" % ref._val, offset)
-        ref._pt = points[ref._val]
         
-    # validating proc refs
-    for instr, offset in sub_refs:
-        if instr['proc_name']._val not in subs:
-            _instr_error("Unresolved reference to procedure: '%s'" % instr['proc_name']._val, offset)
-            
-    # validating label refs
-    for instr, offset in label_refs:
-        if instr['label_name']._val not in labels:
-            _instr_error("Unresolved reference to label: '%s'" % instr['label_name']._val, offset)
+    _validate(instructions, points)
 
     return instructions, points
 
 MAX_INSTRUCTIONS = 2**16 - 1
 
-def write(instructions, stream):
+def _validate(instructions, points):
     if len(instructions) > MAX_INSTRUCTIONS:
-        raise WriteError("Too many instructions %d, maximum allowed is %d", (len(instructions), MAX_INSTRUCTIONS))
-        
+        raise ValidationError("Too many instructions %d, maximum allowed is %d" % (len(instructions), MAX_INSTRUCTIONS))
+    errors = []
+    points_refs = []
+    sub_refs = []
+    subs = set()
+    label_refs = []
+    labels = set()
+    for instr_idx, instr in enumerate(instructions):
+        metadata = _command_metadata[instr['type']]
+        for name, conv in metadata.get('params', ()):
+            if name not in instr:
+                errors.append(('Missing required parameter %s', instr, instr_idx))
+                continue
+            try:
+                val = conv.parse(instr[name])
+            except ValueError, e:
+                errors.append(("Invalid value '%s' for parameter %s: %s" % (instr[name], name, e), instr, instr_idx))
+                continue
+            if issubclass(conv, PointRef):
+                points_refs.append((instr, instr_idx, val, name))
+        if metadata.get('has_speed', False) and 'spd' in instr:
+            if not (MIN_SPD <= instr['spd'] <= MAX_SPD):
+                errors.append(("Invalid speed value %s" % instr['spd'], instr, instr_idx))
+        if instr['type'] == 'SUB':
+            if instr['name'] in subs:
+                errors.append(("Procedure redefined: '%s'" % instr['name'], instr, instr_idx))
+            else:
+                subs.add(instr['name'])
+        elif instr['type'] == 'CALL':
+            sub_refs.append((instr, instr_idx))
+        elif instr['type'] == 'LABEL':
+            if instr['name'] in labels:
+                errors.append(("Label redefined: '%s'" % instr['name'], instr, instr_idx))
+            else:
+                labels.add(instr['name'])
+        elif instr['type'] == 'GOTO':
+            label_refs.append((instr, instr_idx))
+
+    # validating/fixing points refs
+    for instr, instr_idx, ref, name in points_refs:
+        if ref >= len(points):
+            errors.append(("Referenced point doesn't exist, point # %d" % ref, instr, instr_idx))
+
+    # validating proc refs
+    for instr, instr_idx in sub_refs:
+        if instr['proc_name'] not in subs:
+            errors.append(("Unresolved reference to procedure: '%s'" % instr['proc_name'], instr, instr_idx))
+            
+    # validating label refs
+    for instr, instr_idx in label_refs:
+        if instr['label_name'] not in labels:
+            errors.append(("Unresolved reference to label: '%s'" % instr['label_name'], instr, instr_idx))
+            
+    if errors:
+        raise ValidationError(errors)
+
+def write(instructions, stream):
+    _validate(instructions, [])
     num_buf = struct.pack('<H', len(instructions))
     stream.write(num_buf)
     for instr in instructions:
@@ -253,7 +241,7 @@ def write(instructions, stream):
         metadata = _command_metadata[instr['type']]
         params = []
         for name, conv in metadata.get('params', ()):
-            params.append(str(conv(instr[name])))
+            params.append(conv.write(instr[name]))
         if metadata.get('has_speed', False):
             if instr['spd'] != SPDDEF:
                 params.append(str(instr['spd']))

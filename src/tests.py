@@ -27,13 +27,16 @@ class Test(unittest.TestCase):
     def test_simple_instr(self):
         instrs, points = parse(StringIO('\x01\x00\x00\x080,1,2,3\x00' + '\x00' * 22 + '\x02\x00\x00\x00\x01\x00\x00\x00\x05\x00'))
         self.assertEqual(instrs, [{'type': 'PP_LINE',
-                                   'start_point': PointRef(0),
-                                   'end_point': PointRef(1),
+                                   'start_point': 0,
+                                   'end_point': 1,
                                    'dz': 2,
                                    'spd': 3,
                                    'updown': True}])
         self.assertEqual(points, [(0, 0.1), (0, 0.5)])
-        self.assertEqual([instrs[0]['start_point'].get(), instrs[0]['end_point'].get()], [(0, 0.1), (0, 0.5)])
+        self.assertEqual([points[instrs[0]['start_point']],
+                          points[instrs[0]['end_point']]],
+                         [(0, 0.1),
+                          (0, 0.5)])
 
     def test_simple_instr2(self):
         b = '\x01\x00' + \
@@ -85,7 +88,7 @@ class Test(unittest.TestCase):
         #"invalid literal for int() with base 10: 'a' in instruction at offset 0x2"
 
     def test_invalid_file10(self):
-        self.assertRaises(ParseError, parse, StringIO('\x01\x00\x00\x080,0,1,0\x01' + '\x00' * 22 + '\x00\x00'))
+        self.assertRaises(ValidationError, parse, StringIO('\x01\x00\x00\x080,0,1,0\x01' + '\x00' * 22 + '\x00\x00'))
         #"Invalid speed value 0 in instruction at offset 0x2"
 
     def test_invalid_file11(self):
@@ -97,10 +100,16 @@ class Test(unittest.TestCase):
         #"Invalid point reference: -1 in instruction at offset 0x2"
 
     def test_invalid_point_reference(self):
-        self.assertRaises(ParseError, parse, StringIO('\x01\x00\x00\x080,1,2,3\x00' + '\x00' * 22 + '\x01\x00\x00\x00\x01\x00'))
+        b = '\x01\x00' + \
+            '\x00\x080,1,2,3\x00' + '\x00' * 22 + '\x01\x00\x00\x00' + \
+            '\x01\x00'
+        self.assertRaises(ValidationError, parse, StringIO(b))
     
     def test_sub_redefined(self):
-        self.assertRaises(ParseError, parse, StringIO('\x02\x00\x1f\x03abc' + '\x00' * 27 + '\x1f\x03abc' + '\x00' * 27 + '\x00\x00'))
+        b = '\x02\x00' + \
+            '\x1f\x03abc' + '\x00' * 27 + '\x1f\x03abc' + '\x00' * 27 + \
+            '\x00\x00'
+        self.assertRaises(ValidationError, parse, StringIO(b))
         
     def test_valid_proc_reference(self):
         parse(StringIO('\x03\x00' +
@@ -110,18 +119,19 @@ class Test(unittest.TestCase):
                        '\x00\x00'))
     
     def test_invalid_proc_reference(self):
-        self.assertRaises(ParseError, parse, StringIO('\x03\x00' +
-                                                      '\x1f\x03abc' + '\x00' * 27 +
-                                                      '\x15\x00' + '\x00' * 30 +
-                                                      '\x14\x03abd' + '\x00' * 27 +
-                                                      '\x00\x00'))
+        b = '\x03\x00' + \
+            '\x1f\x03abc' + '\x00' * 27 + \
+            '\x15\x00' + '\x00' * 30 + \
+            '\x14\x03abd' + '\x00' * 27 + \
+            '\x00\x00'
+        self.assertRaises(ValidationError, parse, StringIO(b))
     
     def test_label_redefined(self):
         b = '\x02\x00' + \
             '\x13\x03abc' + '\x00' * 27 + \
             '\x13\x03abc' + '\x00' * 27 + \
             '\x00\x00'
-        self.assertRaises(ParseError, parse, StringIO(b))
+        self.assertRaises(ValidationError, parse, StringIO(b))
         
     def test_valid_label_reference(self):
         b = '\x02\x00' + \
@@ -135,7 +145,7 @@ class Test(unittest.TestCase):
             '\x16\x03abc' + '\x00' * 27 + \
             '\x13\x03abd' + '\x00' * 27 + \
             '\x00\x00'
-        self.assertRaises(ParseError, parse, StringIO(b))
+        self.assertRaises(ValidationError, parse, StringIO(b))
         
     def test_simple_save(self):
         stm = StringIO()
@@ -152,7 +162,7 @@ class Test(unittest.TestCase):
         self.assertEqual((instrs, []), read_result)
         
     def test_too_many_instructions(self):
-        self.assertRaises(WriteError, write, [dict(type='LINE', dx=10, dy=20, dz=2, spd=4)]*65536, StringIO())
+        self.assertRaises(ValidationError, write, [dict(type='LINE', dx=10, dy=20, dz=2, spd=4)]*65536, StringIO())
         
     def test_most_instructions(self):
         class NullStream():
