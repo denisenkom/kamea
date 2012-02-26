@@ -155,9 +155,6 @@ def parse(stream):
             instr['updown'] = (ord(params_str[-1]) == 0)
             params_str = params_str[0:-1]
         req = metadata.get('params', ())
-        opt = ()
-        if metadata.get('has_speed', False):
-            opt = (_Integer,)
         params_str = filter(lambda c: 32 <= ord(c) <= 126, params_str)
         params = params_str.split(',')
         if len(params) < len(req):
@@ -168,16 +165,12 @@ def parse(stream):
             except ValueError, e:
                 _instr_error(e, instr_offset)
             instr[name] = val
-        opt_res = params[len(req):]
-        for i in range(min(len(opt), len(params) - len(req))):
+        params = params[len(req):]
+        if metadata.get('has_speed', False) and params:
             try:
-                val = opt[i].parse(opt_res[i])
+                instr['spd'] = int(params.pop())
             except ValueError, e:
                 _instr_error(e, instr_offset)
-            opt_res[i] = opt[i].parse(opt_res[i])
-        if metadata.get('has_speed', False) and opt_res:
-            instr['spd'] = opt_res[0]
-            
         instructions.append(instr)
 
     points_num_buf = stream.read(2)
