@@ -56,28 +56,50 @@ class _Boolean:
 class _PointRef(_Integer): pass
 class _NameRef(_String): pass
     
-_command_metadata = {'PP_LINE': {'params': (('start_point', _PointRef), ('end_point', _PointRef), ('dz', _Floating)),
+_command_metadata = {'PP_LINE': {'params': (('start_point', _PointRef),
+                                            ('end_point', _PointRef),
+                                            ('dz', _Floating)),
                                  'has_speed': True},
-                     'PP_ARC': {'params': (('start_point', _PointRef), ('mid_point', _PointRef), ('end_point', _PointRef)),
+                     'PP_ARC': {'params': (('start_point', _PointRef),
+                                           ('mid_point', _PointRef),
+                                           ('end_point', _PointRef)),
                                 'has_speed': True},
-                     'PR_ARC': {'params': (('start_point', _PointRef), ('end_point', _PointRef), ('radius', _Floating)),
+                     'PR_ARC': {'params': (('start_point', _PointRef),
+                                           ('end_point', _PointRef),
+                                           ('radius', _Floating)),
                                 'has_speed': True,},
-                     'PZ_ARC': {'params': (('start_point', _PointRef), ('mid_point', _PointRef), ('dz', _Floating)),
+                     'PZ_ARC': {'params': (('start_point', _PointRef),
+                                           ('mid_point', _PointRef),
+                                           ('dz', _Floating)),
                                 'has_speed': True,},
-                     'PRZ_ARC': {'params': (('start_point', _PointRef), ('end_point', _PointRef), ('radius', _Floating), ('dz', _Floating)),
+                     'PRZ_ARC': {'params': (('start_point', _PointRef),
+                                            ('end_point', _PointRef),
+                                            ('radius', _Floating),
+                                            ('dz', _Floating)),
                                  'has_speed': True,},
-                     'LINE': {'params': (('dx', _Floating), ('dy', _Floating), ('dz', _Floating)),
+                     'LINE': {'params': (('dx', _Floating),
+                                         ('dy', _Floating),
+                                         ('dz', _Floating)),
                               'has_speed': True,},
-                     'ARC': {'params': (('radius', _Floating), ('al', _Floating), ('fi', _Floating)),
+                     'ARC': {'params': (('radius', _Floating),
+                                        ('al', _Floating),
+                                        ('fi', _Floating)),
                              'has_speed': True,},
-                     'REL_ARC': {'params': (('dx', _Floating), ('dy', _Floating), ('radius', _Floating)),
+                     'REL_ARC': {'params': (('dx', _Floating),
+                                            ('dy', _Floating),
+                                            ('radius', _Floating)),
                                  'has_speed': True,},
                      'ON': {'params': (('device', _Integer),)},
                      'OFF': {'params': (('device', _Integer),)},
-                     'SCALE_X': {'params': (('old_scale', _Integer), ('new_scale', _Integer))},
-                     'SCALE_Y': {'params': (('old_scale', _Integer), ('new_scale', _Integer))},
-                     'SCALE_Z': {'params': (('old_scale', _Integer), ('new_scale', _Integer))},
-                     'TURN': {'params': (('mirror_x', _Boolean), ('mirror_y', _Boolean), ('angle', _Floating))},
+                     'SCALE_X': {'params': (('old_scale', _Integer),
+                                            ('new_scale', _Integer))},
+                     'SCALE_Y': {'params': (('old_scale', _Integer),
+                                            ('new_scale', _Integer))},
+                     'SCALE_Z': {'params': (('old_scale', _Integer),
+                                            ('new_scale', _Integer))},
+                     'TURN': {'params': (('mirror_x', _Boolean),
+                                         ('mirror_y', _Boolean),
+                                         ('angle', _Floating))},
                      'SPEED': {'params': (('speed', _Integer),)},
                      'SET_PARK': {},
                      'GO_PARK': {},
@@ -94,7 +116,10 @@ _command_metadata = {'PP_LINE': {'params': (('start_point', _PointRef), ('end_po
                      'FINISH': {},
                      'PAUSE': {'params': (('delay', _Floating),)},
                      'COMMENT': {'params': (('text', _String),),},
-                     'SPLINE': {'params': (('p1', _PointRef), ('p2', _PointRef), ('p3', _PointRef), ('p4', _PointRef))},
+                     'SPLINE': {'params': (('p1', _PointRef),
+                                           ('p2', _PointRef),
+                                           ('p3', _PointRef),
+                                           ('p4', _PointRef))},
                      }
 
 MAX_CMD_LEN = 30
@@ -175,7 +200,8 @@ MAX_INSTRUCTIONS = 2**16 - 1
 
 def _validate(instructions, points):
     if len(instructions) > MAX_INSTRUCTIONS:
-        raise ValidationError("Too many instructions %d, maximum allowed is %d" % (len(instructions), MAX_INSTRUCTIONS))
+        msg = "Too many instructions %d, maximum allowed is %d" 
+        raise ValidationError(msg % (len(instructions), MAX_INSTRUCTIONS))
     errors = []
     points_refs = []
     sub_refs = []
@@ -186,28 +212,33 @@ def _validate(instructions, points):
         metadata = _command_metadata[instr['type']]
         for name, conv in metadata.get('params', ()):
             if name not in instr:
-                errors.append(('Missing required parameter %s', instr, instr_idx))
+                msg = 'Missing required parameter %s' % name
+                errors.append((msg, instr, instr_idx))
                 continue
             try:
                 val = conv.parse(instr[name])
             except ValueError, e:
-                errors.append(("Invalid value '%s' for parameter %s: %s" % (instr[name], name, e), instr, instr_idx))
+                msg = "Invalid value '%s' for parameter %s: %s"
+                errors.append((msg % (instr[name], name, e), instr, instr_idx))
                 continue
             if issubclass(conv, _PointRef):
                 points_refs.append((instr, instr_idx, val, name))
         if metadata.get('has_speed', False) and 'spd' in instr:
             if not (MIN_SPD <= instr['spd'] <= MAX_SPD):
-                errors.append(("Invalid speed value %s" % instr['spd'], instr, instr_idx))
+                msg = "Invalid speed value %s" % instr['spd']
+                errors.append((msg, instr, instr_idx))
         if instr['type'] == 'SUB':
             if instr['name'] in subs:
-                errors.append(("Procedure redefined: '%s'" % instr['name'], instr, instr_idx))
+                msg = "Procedure redefined: '%s'" % instr['name']
+                errors.append((msg, instr, instr_idx))
             else:
                 subs.add(instr['name'])
         elif instr['type'] == 'CALL':
             sub_refs.append((instr, instr_idx))
         elif instr['type'] == 'LABEL':
             if instr['name'] in labels:
-                errors.append(("Label redefined: '%s'" % instr['name'], instr, instr_idx))
+                msg = "Label redefined: '%s'" % instr['name']
+                errors.append((msg, instr, instr_idx))
             else:
                 labels.add(instr['name'])
         elif instr['type'] == 'GOTO':
@@ -216,17 +247,20 @@ def _validate(instructions, points):
     # validating/fixing points refs
     for instr, instr_idx, ref, name in points_refs:
         if ref >= len(points):
-            errors.append(("Referenced point doesn't exist, point # %d" % ref, instr, instr_idx))
+            msg = "Referenced point doesn't exist, point # %d" % ref
+            errors.append((msg, instr, instr_idx))
 
     # validating proc refs
     for instr, instr_idx in sub_refs:
         if instr['proc_name'] not in subs:
-            errors.append(("Unresolved reference to procedure: '%s'" % instr['proc_name'], instr, instr_idx))
+            msg = "Unresolved reference: '%s'" % instr['proc_name']
+            errors.append((msg, instr, instr_idx))
             
     # validating label refs
     for instr, instr_idx in label_refs:
         if instr['label_name'] not in labels:
-            errors.append(("Unresolved reference to label: '%s'" % instr['label_name'], instr, instr_idx))
+            msg = "Unresolved reference to label: '%s'" % instr['label_name']
+            errors.append((msg, instr, instr_idx))
             
     if errors:
         raise ValidationError(errors)
@@ -249,7 +283,8 @@ def write(instructions, stream):
         if instr['type'] == 'PP_LINE':
             params_str += '\x00' if instr['updown'] else '\x01'
         if len(params_str) > 30:
-            raise WriteError("Bad instruction, parameters are too long: '%s'" % params_str)
+            msg = "Bad instruction, parameters are too long: '%s'" % params_str
+            raise WriteError(msg)
         stream.write(struct.pack('B', len(params_str)))
         stream.write(params_str + '\x00'* (30 - len(params_str)))
     stream.write('\x00\x00')
